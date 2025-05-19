@@ -1,5 +1,3 @@
-https://malagutt1.github.io/WebSiteReconhecimentoFacial.github.io/
-
 <!DOCTYPE html>
 <html lang="pt-br">
 <head>
@@ -72,7 +70,7 @@ https://malagutt1.github.io/WebSiteReconhecimentoFacial.github.io/
         });
       });
 
-      const confidenceThreshold = 0.2;
+      const confidenceThreshold = 0.4;
       if (best.dist < confidenceThreshold) {
         results.textContent = `👋 Bem-vindo, ${best.name}! (${Math.round((1 - best.dist) * 100)}%)`;
       } else {
@@ -103,7 +101,7 @@ https://malagutt1.github.io/WebSiteReconhecimentoFacial.github.io/
             delegate: 'GPU',
           },
           runningMode: 'VIDEO',
-          minDetectionConfidence: 0.75,
+          minDetectionConfidence: 0.85,
         });
         status.textContent = '🟢 Sistema pronto';
       } catch (e) {
