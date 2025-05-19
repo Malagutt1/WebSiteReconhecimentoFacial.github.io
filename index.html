@@ -54,7 +54,7 @@
 
     let faceDetector, cameraStream;
     let isCapturing = false, captureCount = 0;
-    const TOTAL = 20, DELAY = 300;
+    const TOTAL = 20, DELAY = 250;
     let lastCapture = 0;
 
     let faceDB = JSON.parse(localStorage.getItem('faceDB') || '{"users":[]}');
