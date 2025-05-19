@@ -1,0 +1,208 @@
+:root {
+    /* Cores profissionais */
+    --primary-blue: #2563eb;
+    --secondary-blue: #1e40af;
+    --accent-green: #10b981;
+    --dark-bg: #111827;
+    --light-bg: #f3f4f6;
+    --text-primary: #1f2937;
+    --text-light: #f9fafb;
+    --border-color: #e5e7eb;
+
+    --base-font: 'Segoe UI', system-ui, sans-serif;
+    --heading-font: 'Inter', 'Helvetica Neue', sans-serif;
+    
+    --spacing-unit: 1rem;
+    --radius: 8px;
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+html {
+    scroll-behavior: smooth;
+    font-size: 16px;
+}
+
+body {
+    font-family: var(--base-font);
+    line-height: 1.6;
+    background: var(--light-bg);
+    color: var(--text-primary);
+    padding: calc(var(--spacing-unit) * 2);
+}
+
+.container {
+    max-width: 1200px;
+    margin: 0 auto;
+    background: white;
+    border-radius: var(--radius);
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+    padding: calc(var(--spacing-unit) * 2);
+}
+
+h1 {
+    font-family: var(--heading-font);
+    font-size: 2.25rem;
+    color: rgb(145, 145, 145);
+    margin-bottom: var(--spacing-unit);
+    font-weight: 600;
+    align-items: center;
+    gap: 0.75rem;
+    text-align: center;
+    border-radius: 8px var(--radius);
+    background-color: #f3f4f6;
+    border: 1px solid var(--border-color);
+
+}
+
+.split {
+    display: grid;
+    grid-template-columns: 1fr 1.5fr;
+    gap: calc(var(--spacing-unit) * 2);
+    margin-top: calc(var(--spacing-unit) * 2);
+}
+
+.panel {
+    background: var(--light-bg);
+    border-radius: var(--radius);
+    padding: calc(var(--spacing-unit) * 1.5);
+    border: 1px solid var(--border-color);
+}
+
+h2  {
+    font-size: 30px;
+    color: var(--secondary-blue);
+    margin-bottom: var(--spacing-unit);
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.video-container {
+    position: relative;
+    border-radius: var(--radius);
+    overflow: hidden;
+    background: var(--dark-bg);
+    margin-bottom: var(--spacing-unit);
+    aspect-ratio: 16/9;
+}
+
+.controls {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: var(--spacing-unit);
+    margin-bottom: var(--spacing-unit);
+}
+
+button {
+    padding: 0.75rem 1.5rem;
+    background: var(--primary-blue);
+    color: white;
+    border: none;
+    border-radius: var(--radius);
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+button:hover {
+    background: var(--secondary-blue);
+    transform: translateY(-1px);
+}
+
+button:disabled {
+    background: #94a3b8;
+    cursor: not-allowed;
+    transform: none;
+}
+
+input[type="text"] {
+    width: 100%;
+    padding: 0.75rem;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius);
+    margin-bottom: var(--spacing-unit);
+    transition: border-color 0.2s ease;
+}
+
+input[type="text"]:focus {
+    outline: none;
+    border-color: var(--primary-blue);
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+
+#status {
+    padding: 0.75rem;
+    background: var(--light-bg);
+    border-radius: var(--radius);
+    margin: var(--spacing-unit) 0;
+    border-left: 4px solid var(--primary-blue);
+    color: var(--text-primary);
+    font-weight: 500;
+}
+
+#results {
+    color: var(--accent-green);
+    font-weight: 600;
+    margin: var(--spacing-unit) 0;
+}
+
+.manage {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: var(--spacing-unit);
+    align-items: start;
+}
+
+select {
+    width: 100%;
+    padding: 0.75rem;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius);
+    background: white;
+    color: var(--text-primary);
+}
+
+#btnDelete {
+    background: #ef4444;
+    align-self: stretch;
+}
+
+#btnDelete:hover {
+    background: #dc2626;
+}
+
+@media (max-width: 768px) {
+    .split {
+        grid-template-columns: 1fr;
+    }
+    
+    .controls {
+        grid-template-columns: 1fr;
+    }
+    
+    h1 {
+        font-size: 1.75rem;
+    }
+    
+    .container {
+        padding: var(--spacing-unit);
+    }
+}
+
+
+
+li{
+    font-family: Verdana, Geneva, Tahoma, sans-serif;
+    font-weight: bold;
+    padding: 10px;
+    margin-left: 20px;
+    font-size: 20px;
+}

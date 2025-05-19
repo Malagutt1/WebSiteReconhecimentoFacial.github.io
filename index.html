@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <link rel="stylesheet" href="styles.css">
+  <title>Sistema de Reconhecimento Facial</title>
+ 
+</head>
+<body>
+  <div class="container">
+    <h1>🤖 Sistema de Reconhecimento Facial 🤖</h1>
+    <div class="split">
+      <div class="panel">
+        <h2>📋 INSTRUÇÕES</h2>
+        <ol>
+          <li>Clique em “Ligar Câmera”</li>
+          <li>Digite seu nome completo</li>
+          <li>Clique em “Capturar Rosto (20x)”</li>
+          <li>Aguarde até o status confirmar</li>
+          <li>Veja seu nome na lista</li>
+          <li>Selecione e clique em “Excluir” para remover</li>
+        </ol>
+      </div>
+      <div class="panel">
+        <div class="video-container"><video id="videoFeed" autoplay playsinline></video></div>
+        <div class="controls">
+          <button id="btnStart">🎥 Ligar Câmera</button>
+          <button id="btnCapture" disabled>📸 Capturar Rosto (20x)</button>
+          <button id="btnStop" disabled>⏹️ Desligar Câmera</button>
+        </div>
+        <input type="text" id="userName" placeholder="Digite seu nome completo"/>
+        <div id="status">🔴 Status: Aguardando inicialização</div>
+        <div id="results"></div>
+        <div class="manage">
+          <select id="userList" multiple></select>
+          <button id="btnDelete">🗑️ Excluir Cadastro</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script type="module">
+    import * as vision from 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision/vision_bundle.mjs';
+
+    const video = document.getElementById('videoFeed');
+    const btnStart = document.getElementById('btnStart');
+    const btnCapture = document.getElementById('btnCapture');
+    const btnStop = document.getElementById('btnStop');
+    const userName = document.getElementById('userName');
+    const status = document.getElementById('status');
+    const results = document.getElementById('results');
+    const userList = document.getElementById('userList');
+    const btnDelete = document.getElementById('btnDelete');
+
+    let faceDetector, cameraStream;
+    let isCapturing = false, captureCount = 0;
+    const TOTAL = 20, DELAY = 300;
+    let lastCapture = 0;
+
+    let faceDB = JSON.parse(localStorage.getItem('faceDB')||'{"users":[]}');
+
+    async function init() {
+      try {
+        const fileset = await vision.FilesetResolver.forVisionTasks(
+          'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision/wasm'
+        );
+        faceDetector = await vision.FaceDetector.createFromOptions(fileset, {
+          baseOptions: {
+            modelAssetPath: 'https://storage.googleapis.com/mediapipe-models/face_detector/blaze_face_short_range/float16/latest/blaze_face_short_range.tflite',
+            delegate: 'GPU'
+          },
+          runningMode: 'VIDEO',
+          minDetectionConfidence: 0.7
+        });
+        status.textContent = '🟢 Sistema pronto';
+      } catch (e) {
+        status.textContent = '🔴 Erro IA: ' + e.message;
+      }
+    }
+
+    function updateList() {
+      userList.innerHTML = ''; faceDB.users.forEach(u => {
+        const o = document.createElement('option');
+        o.value = u.name;
+        o.textContent = `${u.name} (${u.embeddings.length} fotos)`;
+        userList.append(o);
+      });
+    }
+
+    async function frameLoop() {
+      if (!faceDetector || !cameraStream) return;
+      const now = performance.now();
+      const res = await faceDetector.detectForVideo(video, now);
+      if (res.detections.length) {
+        const emb = res.detections[0].keypoints.flatMap(p=>[p.x,p.y]);
+        if (isCapturing && now - lastCapture > DELAY) {
+          lastCapture = now; captureCount++;
+          status.textContent = `📸 Capturando ${captureCount}/${TOTAL}`;
+          saveEmbedding(emb);
+          if (captureCount>=TOTAL) stopCapture();
+        }
+        if (!isCapturing) recognize(emb);
+      }
+      requestAnimationFrame(frameLoop);
+    }
+
+    function saveEmbedding(emb) {
+      const name = userName.value.trim();
+      let user = faceDB.users.find(u=>u.name===name);
+      if (!user) { user={name,embeddings:[]}; faceDB.users.push(user); }
+      user.embeddings.push(emb);
+      localStorage.setItem('faceDB', JSON.stringify(faceDB));
+    }
+
+    function recognize(emb) {
+      let best={name:'',dist:Infinity};
+      faceDB.users.forEach(u=>u.embeddings.forEach(e=>{
+        const d=Math.hypot(...e.map((v,i)=>v-emb[i]));
+        if(d<best.dist) best={name:u.name,dist:d};
+      }));
+      results.textContent = best.dist<0.2
+        ? `👋 Bem-vindo, ${best.name}! (${Math.round((1-best.dist)*100)}%)`
+        : '';
+    }
+
+    function startCapture() {
+      if(!userName.value.trim()) return alert('Digite um nome!');
+      isCapturing=true; captureCount=0; lastCapture=0;
+      btnCapture.disabled=true;
+      status.textContent='⏳ Preparando captura...';
+      setTimeout(()=>status.textContent='📸 Capturando fotos...',500);
+    }
+
+    function stopCapture() {
+      isCapturing=false; btnCapture.disabled=false;
+      status.textContent=`✅ ${userName.value.trim()} cadastrado!`;
+      userName.value=''; updateList();
+    }
+
+    btnStart.onclick = async()=>{
+      cameraStream = await navigator.mediaDevices.getUserMedia({video:{facingMode:'user'}});
+      video.srcObject = cameraStream; await init(); frameLoop();
+      btnStart.disabled=true; btnStop.disabled=false; btnCapture.disabled=false;
+      status.textContent='🟢 Câmera ativa';
+    };
+    btnCapture.onclick = startCapture;
+    btnStop.onclick = ()=>{
+      cameraStream.getTracks().forEach(t=>t.stop()); video.srcObject=null;
+      btnStart.disabled=false; btnStop.disabled=true; btnCapture.disabled=true;
+      status.textContent='⏹️ Câmera parada'; results.textContent='';
+    };
+    btnDelete.onclick = ()=>{
+      const sel=userList.value;
+      faceDB.users = faceDB.users.filter(u=>u.name!==sel);
+      localStorage.setItem('faceDB',JSON.stringify(faceDB)); updateList();
+      status.textContent=`🗑️ ${sel} removido`;
+    };
+
+    updateList();
+  </script>
+</body>
+</html>
