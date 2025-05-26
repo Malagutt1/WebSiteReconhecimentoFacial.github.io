@@ -4,11 +4,11 @@
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
   <link rel="stylesheet" href="styles.css">
-  <title>Sistema de Reconhecimento Facial</title>
+  <title>Sistema de Reconhecimento Facial Avançado</title>
 </head>
 <body>
   <div class="container">
-    <h1>🤖 Sistema de Reconhecimento Facial 🤖</h1>
+    <h1>🤖 Sistema de Reconhecimento Facial Avançado 🤖</h1>
     <div class="split">
       <div class="panel">
         <h2>📋 INSTRUÇÕES</h2>
@@ -81,7 +81,7 @@
       const best = sims[0];
       const second = sims[1] || { sim: 0 };
 
-      const threshold = 0.88;
+      const threshold = 0.88; // Aumentar caso não seja suficiente
       const margin = 0.03;
 
       if (best.sim > threshold && best.sim - second.sim > margin) {
