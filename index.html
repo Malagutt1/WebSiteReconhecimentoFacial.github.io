@@ -56,23 +56,30 @@
     let isCapturing = false, captureCount = 0;
     const TOTAL = 20, DELAY = 250;
     let lastCapture = 0;
+    let loopInterval;
 
     let faceDB = JSON.parse(localStorage.getItem('faceDB') || '{"users":[]}');
 
+    function cosineSimilarity(a, b) {
+      const dot = a.reduce((sum, val, i) => sum + val * b[i], 0);
+      const magA = Math.sqrt(a.reduce((sum, val) => sum + val * val, 0));
+      const magB = Math.sqrt(b.reduce((sum, val) => sum + val * val, 0));
+      return dot / (magA * magB);
+    }
+
     function recognize(emb) {
-      let best = { name: '', dist: Infinity };
+      let best = { name: '', sim: -1 };
       faceDB.users.forEach((u) => {
         u.embeddings.forEach((e) => {
-          const d = Math.hypot(...e.map((v, i) => v - emb[i]));
-          if (d < best.dist) {
-            best = { name: u.name, dist: d };
+          const s = cosineSimilarity(e, emb);
+          if (s > best.sim) {
+            best = { name: u.name, sim: s };
           }
         });
       });
-
-      const confidenceThreshold = 0.4;
-      if (best.dist < confidenceThreshold) {
-        results.textContent = `👋 Bem-vindo, ${best.name}! (${Math.round((1 - best.dist) * 100)}%)`;
+      const threshold = 0.92;
+      if (best.sim > threshold) {
+        results.textContent = `👋 Bem-vindo, ${best.name}! (${Math.round(best.sim * 100)}%)`;
       } else {
         results.textContent = '';
       }
@@ -124,7 +131,6 @@
         }
         if (!isCapturing) recognize(emb);
       }
-      requestAnimationFrame(frameLoop);
     }
 
     function startCapture() {
@@ -159,7 +165,7 @@
       cameraStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } });
       video.srcObject = cameraStream;
       await init();
-      frameLoop();
+      loopInterval = setInterval(frameLoop, 100);
       btnStart.disabled = true;
       btnStop.disabled = false;
       btnCapture.disabled = false;
@@ -171,6 +177,7 @@
     btnStop.onclick = () => {
       cameraStream.getTracks().forEach((t) => t.stop());
       video.srcObject = null;
+      clearInterval(loopInterval);
       btnStart.disabled = false;
       btnStop.disabled = true;
       btnCapture.disabled = true;
