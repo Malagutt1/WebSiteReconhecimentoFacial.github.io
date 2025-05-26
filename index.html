@@ -4,18 +4,17 @@
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
   <link rel="stylesheet" href="styles.css">
-  <title>Sistema de Reconhecimento Facial Avançado</title>
+  <title>Sistema de Reconhecimento Facial</title>
 </head>
 <body>
   <div class="container">
-    <h1>🤖 Sistema de Reconhecimento Facial Avançado 🤖</h1>
+    <h1>🤖 Sistema de Reconhecimento Facial 🤖</h1>
     <div class="split">
       <div class="panel">
         <h2>📋 INSTRUÇÕES</h2>
         <ol>
           <li>Clique em “Ligar Câmera”</li>
           <li>Digite seu nome completo</li>
-          <li>Siga as instruções de pose (olhar para lados, cima, baixo)</li>
           <li>Clique em “Capturar Rosto (20x)”</li>
           <li>Aguarde até o status confirmar</li>
           <li>Veja seu nome na lista</li>
@@ -57,43 +56,28 @@
     let isCapturing = false, captureCount = 0;
     const TOTAL = 20, DELAY = 250;
     let lastCapture = 0;
-    let loopInterval;
 
     let faceDB = JSON.parse(localStorage.getItem('faceDB') || '{"users":[]}');
 
-    // Função para calcular similaridade de cosseno
-    function cosineSimilarity(a, b) {
-      const dot = a.reduce((sum, val, i) => sum + val * b[i], 0);
-      const magA = Math.sqrt(a.reduce((sum, val) => sum + val * val, 0));
-      const magB = Math.sqrt(b.reduce((sum, val) => sum + val * val, 0));
-      return dot / (magA * magB);
-    }
-
-    // Reconhecimento de face
     function recognize(emb) {
-      const sims = [];
+      let best = { name: '', dist: Infinity };
       faceDB.users.forEach((u) => {
         u.embeddings.forEach((e) => {
-          sims.push({ name: u.name, sim: cosineSimilarity(e, emb) });
+          const d = Math.hypot(...e.map((v, i) => v - emb[i]));
+          if (d < best.dist) {
+            best = { name: u.name, dist: d };
+          }
         });
       });
 
-      sims.sort((a, b) => b.sim - a.sim);
-
-      const best = sims[0];
-      const second = sims[1] || { sim: 0 };
-
-      const threshold = 0.88; // Aumente conforme necessário
-      const margin = 0.03;
-
-      if (best.sim > threshold && best.sim - second.sim > margin) {
-        results.textContent = `👋 Bem-vindo, ${best.name}! (${Math.round(best.sim * 100)}%)`;
+      const confidenceThreshold = 0.4;
+      if (best.dist < confidenceThreshold) {
+        results.textContent = `👋 Bem-vindo, ${best.name}! (${Math.round((1 - best.dist) * 100)}%)`;
       } else {
         results.textContent = '';
       }
     }
 
-    // Salvar embeddings
     function saveEmbedding(emb) {
       const name = userName.value.trim();
       let user = faceDB.users.find((u) => u.name === name);
@@ -105,7 +89,6 @@
       localStorage.setItem('faceDB', JSON.stringify(faceDB));
     }
 
-    // Inicializar detector
     async function init() {
       try {
         const fileset = await vision.FilesetResolver.forVisionTasks(
@@ -126,7 +109,6 @@
       }
     }
 
-    // Loop de captura de frames
     async function frameLoop() {
       if (!faceDetector || !cameraStream) return;
       const now = performance.now();
@@ -136,15 +118,15 @@
         if (isCapturing && now - lastCapture > DELAY) {
           lastCapture = now;
           captureCount++;
-          status.textContent = `📸 Captura ${captureCount}/${TOTAL} — Vire o rosto para lados e cima/baixo`;
+          status.textContent = `📸 Capturando ${captureCount}/${TOTAL}`;
           saveEmbedding(emb);
           if (captureCount >= TOTAL) stopCapture();
         }
         if (!isCapturing) recognize(emb);
       }
+      requestAnimationFrame(frameLoop);
     }
 
-    // Iniciar captura
     function startCapture() {
       if (!userName.value.trim()) return alert('Digite um nome!');
       isCapturing = true;
@@ -152,21 +134,17 @@
       lastCapture = 0;
       btnCapture.disabled = true;
       status.textContent = '⏳ Preparando captura...';
-      setTimeout(() => {
-        status.textContent = '📸 Capturando fotos...';
-      }, 500);
+      setTimeout(() => (status.textContent = '📸 Capturando fotos...'), 500);
     }
 
-    // Parar captura
     function stopCapture() {
       isCapturing = false;
       btnCapture.disabled = false;
-      status.textContent = `✅ ${userName.value.trim()} cadastrado com sucesso!`;
+      status.textContent = `✅ ${userName.value.trim()} cadastrado!`;
       userName.value = '';
       updateList();
     }
 
-    // Atualizar lista de usuários
     function updateList() {
       userList.innerHTML = '';
       faceDB.users.forEach((u) => {
@@ -177,26 +155,22 @@
       });
     }
 
-    // Iniciar a câmera
     btnStart.onclick = async () => {
       cameraStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } });
       video.srcObject = cameraStream;
       await init();
-      loopInterval = setInterval(frameLoop, 100);
+      frameLoop();
       btnStart.disabled = true;
       btnStop.disabled = false;
       btnCapture.disabled = false;
       status.textContent = '🟢 Câmera ativa';
     };
 
-    // Capturar rosto
     btnCapture.onclick = startCapture;
 
-    // Parar a câmera
     btnStop.onclick = () => {
       cameraStream.getTracks().forEach((t) => t.stop());
       video.srcObject = null;
-      clearInterval(loopInterval);
       btnStart.disabled = false;
       btnStop.disabled = true;
       btnCapture.disabled = true;
@@ -204,7 +178,6 @@
       results.textContent = '';
     };
 
-    // Excluir usuário
     btnDelete.onclick = () => {
       const sel = userList.value;
       faceDB.users = faceDB.users.filter((u) => u.name !== sel);
