@@ -15,6 +15,7 @@
         <ol>
           <li>Clique em “Ligar Câmera”</li>
           <li>Digite seu nome completo</li>
+          <li>Siga as instruções de pose (olhar para lados, cima, baixo)</li>
           <li>Clique em “Capturar Rosto (20x)”</li>
           <li>Aguarde até o status confirmar</li>
           <li>Veja seu nome na lista</li>
@@ -68,17 +69,22 @@
     }
 
     function recognize(emb) {
-      let best = { name: '', sim: -1 };
+      const sims = [];
       faceDB.users.forEach((u) => {
         u.embeddings.forEach((e) => {
-          const s = cosineSimilarity(e, emb);
-          if (s > best.sim) {
-            best = { name: u.name, sim: s };
-          }
+          sims.push({ name: u.name, sim: cosineSimilarity(e, emb) });
         });
       });
-      const threshold = 0.92;
-      if (best.sim > threshold) {
+
+      sims.sort((a, b) => b.sim - a.sim);
+
+      const best = sims[0];
+      const second = sims[1] || { sim: 0 };
+
+      const threshold = 0.88;
+      const margin = 0.03;
+
+      if (best.sim > threshold && best.sim - second.sim > margin) {
         results.textContent = `👋 Bem-vindo, ${best.name}! (${Math.round(best.sim * 100)}%)`;
       } else {
         results.textContent = '';
@@ -125,7 +131,7 @@
         if (isCapturing && now - lastCapture > DELAY) {
           lastCapture = now;
           captureCount++;
-          status.textContent = `📸 Capturando ${captureCount}/${TOTAL}`;
+          status.textContent = `📸 Captura ${captureCount}/${TOTAL} — Vire o rosto para lados e cima/baixo`;
           saveEmbedding(emb);
           if (captureCount >= TOTAL) stopCapture();
         }
@@ -140,13 +146,15 @@
       lastCapture = 0;
       btnCapture.disabled = true;
       status.textContent = '⏳ Preparando captura...';
-      setTimeout(() => (status.textContent = '📸 Capturando fotos...'), 500);
+      setTimeout(() => {
+        status.textContent = '📸 Capturando fotos...';
+      }, 500);
     }
 
     function stopCapture() {
       isCapturing = false;
       btnCapture.disabled = false;
-      status.textContent = `✅ ${userName.value.trim()} cadastrado!`;
+      status.textContent = `✅ ${userName.value.trim()} cadastrado com sucesso!`;
       userName.value = '';
       updateList();
     }
