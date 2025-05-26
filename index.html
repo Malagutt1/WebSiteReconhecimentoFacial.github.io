@@ -4,11 +4,11 @@
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
   <link rel="stylesheet" href="styles.css">
-  <title>Sistema de Reconhecimento Facial</title>
+  <title>Sistema de Reconhecimento Facial Avançado</title>
 </head>
 <body>
   <div class="container">
-    <h1>🤖 Sistema de Reconhecimento Facial 🤖</h1>
+    <h1>🤖 Sistema de Reconhecimento Facial Avançado 🤖</h1>
     <div class="split">
       <div class="panel">
         <h2>📋 INSTRUÇÕES</h2>
@@ -61,6 +61,7 @@
 
     let faceDB = JSON.parse(localStorage.getItem('faceDB') || '{"users":[]}');
 
+    // Função para calcular similaridade de cosseno
     function cosineSimilarity(a, b) {
       const dot = a.reduce((sum, val, i) => sum + val * b[i], 0);
       const magA = Math.sqrt(a.reduce((sum, val) => sum + val * val, 0));
@@ -68,6 +69,7 @@
       return dot / (magA * magB);
     }
 
+    // Reconhecimento de face
     function recognize(emb) {
       const sims = [];
       faceDB.users.forEach((u) => {
@@ -81,7 +83,7 @@
       const best = sims[0];
       const second = sims[1] || { sim: 0 };
 
-      const threshold = 0.88;
+      const threshold = 0.88; // Aumente conforme necessário
       const margin = 0.03;
 
       if (best.sim > threshold && best.sim - second.sim > margin) {
@@ -91,6 +93,7 @@
       }
     }
 
+    // Salvar embeddings
     function saveEmbedding(emb) {
       const name = userName.value.trim();
       let user = faceDB.users.find((u) => u.name === name);
@@ -102,6 +105,7 @@
       localStorage.setItem('faceDB', JSON.stringify(faceDB));
     }
 
+    // Inicializar detector
     async function init() {
       try {
         const fileset = await vision.FilesetResolver.forVisionTasks(
@@ -122,6 +126,7 @@
       }
     }
 
+    // Loop de captura de frames
     async function frameLoop() {
       if (!faceDetector || !cameraStream) return;
       const now = performance.now();
@@ -139,6 +144,7 @@
       }
     }
 
+    // Iniciar captura
     function startCapture() {
       if (!userName.value.trim()) return alert('Digite um nome!');
       isCapturing = true;
@@ -151,6 +157,7 @@
       }, 500);
     }
 
+    // Parar captura
     function stopCapture() {
       isCapturing = false;
       btnCapture.disabled = false;
@@ -159,6 +166,7 @@
       updateList();
     }
 
+    // Atualizar lista de usuários
     function updateList() {
       userList.innerHTML = '';
       faceDB.users.forEach((u) => {
@@ -169,6 +177,7 @@
       });
     }
 
+    // Iniciar a câmera
     btnStart.onclick = async () => {
       cameraStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } });
       video.srcObject = cameraStream;
@@ -180,8 +189,10 @@
       status.textContent = '🟢 Câmera ativa';
     };
 
+    // Capturar rosto
     btnCapture.onclick = startCapture;
 
+    // Parar a câmera
     btnStop.onclick = () => {
       cameraStream.getTracks().forEach((t) => t.stop());
       video.srcObject = null;
@@ -193,6 +204,7 @@
       results.textContent = '';
     };
 
+    // Excluir usuário
     btnDelete.onclick = () => {
       const sel = userList.value;
       faceDB.users = faceDB.users.filter((u) => u.name !== sel);
