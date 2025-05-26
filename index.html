@@ -3,8 +3,168 @@
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
-  <link rel="stylesheet" href="styles.css">
   <title>Sistema de Reconhecimento Facial Avançado</title>
+  <style>
+    :root {
+      --primary: #2c3e50;
+      --secondary: #3498db;
+      --success: #27ae60;
+      --danger: #e74c3c;
+    }
+
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      margin: 0;
+      padding: 20px;
+      background: #f5f6fa;
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      background: white;
+      padding: 30px;
+      border-radius: 15px;
+      box-shadow: 0 0 20px rgba(0,0,0,0.1);
+    }
+
+    h1 {
+      text-align: center;
+      color: var(--primary);
+      margin-bottom: 30px;
+    }
+
+    .split {
+      display: grid;
+      grid-template-columns: 1fr 2fr;
+      gap: 30px;
+    }
+
+    .panel {
+      background: #f8f9fa;
+      padding: 20px;
+      border-radius: 10px;
+      border: 1px solid #eee;
+    }
+
+    .video-container {
+      position: relative;
+      width: 100%;
+      height: 400px;
+      border-radius: 10px;
+      overflow: hidden;
+      background: #000;
+    }
+
+    #videoFeed {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .controls {
+      display: flex;
+      gap: 10px;
+      margin: 15px 0;
+      flex-wrap: wrap;
+    }
+
+    button {
+      padding: 12px 20px;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: 600;
+      transition: 0.3s;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    button:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+
+    #btnStart { background: var(--secondary); color: white; }
+    #btnCapture { background: var(--success); color: white; }
+    #btnStop { background: var(--danger); color: white; }
+    #btnDelete { background: #e67e22; color: white; }
+
+    input[type="text"] {
+      width: 100%;
+      padding: 12px;
+      margin: 10px 0;
+      border: 2px solid #ddd;
+      border-radius: 6px;
+      font-size: 16px;
+    }
+
+    #status {
+      padding: 12px;
+      margin: 15px 0;
+      border-radius: 6px;
+      background: #ecf0f1;
+      font-weight: 500;
+    }
+
+    #userList {
+      width: 100%;
+      height: 150px;
+      margin: 10px 0;
+      padding: 10px;
+      border: 2px solid #ddd;
+      border-radius: 6px;
+    }
+
+    .progress-container {
+      width: 100%;
+      height: 20px;
+      background: #eee;
+      border-radius: 10px;
+      margin: 15px 0;
+      overflow: hidden;
+    }
+
+    .progress-bar {
+      height: 100%;
+      background: var(--success);
+      transition: width 0.3s ease;
+    }
+
+    .face-overlay {
+      position: absolute;
+      border: 3px solid #00ff00;
+      box-shadow: 0 0 15px #00ff0040;
+      pointer-events: none;
+    }
+
+    .pose-instruction {
+      color: var(--primary);
+      font-weight: 600;
+      text-align: center;
+      margin: 15px 0;
+      padding: 10px;
+      background: #fff3cd;
+      border-radius: 6px;
+    }
+
+    .alert {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      padding: 15px 25px;
+      background: var(--danger);
+      color: white;
+      border-radius: 8px;
+      animation: slideIn 0.3s ease;
+    }
+
+    @keyframes slideIn {
+      from { transform: translateX(100%); }
+      to { transform: translateX(0); }
+    }
+  </style>
 </head>
 <body>
   <div class="container">
@@ -23,7 +183,13 @@
         </ol>
       </div>
       <div class="panel">
-        <div class="video-container"><video id="videoFeed" autoplay playsinline></video></div>
+        <div class="video-container">
+          <video id="videoFeed" autoplay playsinline></video>
+        </div>
+        <div class="progress-container">
+          <div class="progress-bar" style="width: 0%"></div>
+        </div>
+        <div class="pose-instruction" id="poseText"></div>
         <div class="controls">
           <button id="btnStart">🎥 Ligar Câmera</button>
           <button id="btnCapture" disabled>📸 Capturar Rosto (20x)</button>
@@ -43,165 +209,289 @@
   <script type="module">
     import * as vision from 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision/vision_bundle.mjs';
 
-    const video = document.getElementById('videoFeed');
-    const btnStart = document.getElementById('btnStart');
-    const btnCapture = document.getElementById('btnCapture');
-    const btnStop = document.getElementById('btnStop');
-    const userName = document.getElementById('userName');
-    const status = document.getElementById('status');
-    const results = document.getElementById('results');
-    const userList = document.getElementById('userList');
-    const btnDelete = document.getElementById('btnDelete');
-
-    let faceDetector, cameraStream;
-    let isCapturing = false, captureCount = 0;
-    const TOTAL = 20, DELAY = 250;
-    let lastCapture = 0;
-    let loopInterval;
-
-    let faceDB = JSON.parse(localStorage.getItem('faceDB') || '{"users":[]}');
-
-    function cosineSimilarity(a, b) {
-      const dot = a.reduce((sum, val, i) => sum + val * b[i], 0);
-      const magA = Math.sqrt(a.reduce((sum, val) => sum + val * val, 0));
-      const magB = Math.sqrt(b.reduce((sum, val) => sum + val * val, 0));
-      return dot / (magA * magB);
-    }
-
-    function recognize(emb) {
-      const sims = [];
-      faceDB.users.forEach((u) => {
-        u.embeddings.forEach((e) => {
-          sims.push({ name: u.name, sim: cosineSimilarity(e, emb) });
-        });
-      });
-
-      sims.sort((a, b) => b.sim - a.sim);
-
-      const best = sims[0];
-      const second = sims[1] || { sim: 0 };
-
-      const threshold = 0.88; // Aumentar caso não seja suficiente
-      const margin = 0.03;
-
-      if (best.sim > threshold && best.sim - second.sim > margin) {
-        results.textContent = `👋 Bem-vindo, ${best.name}! (${Math.round(best.sim * 100)}%)`;
-      } else {
-        results.textContent = '';
+    class FacialRecognitionSystem {
+      constructor() {
+        this.video = document.getElementById('videoFeed');
+        this.faceDetector = null;
+        this.cameraStream = null;
+        this.isCapturing = false;
+        this.captureCount = 0;
+        this.currentPose = 0;
+        this.poses = ['center', 'left', 'right', 'up', 'down'];
+        this.faceDB = JSON.parse(localStorage.getItem('faceDB') || '{"users":[]}');
+        this.initializeElements();
+        this.initializeEventListeners();
       }
-    }
 
-    function saveEmbedding(emb) {
-      const name = userName.value.trim();
-      let user = faceDB.users.find((u) => u.name === name);
-      if (!user) {
-        user = { name, embeddings: [] };
-        faceDB.users.push(user);
+      initializeElements() {
+        this.elements = {
+          btnStart: document.getElementById('btnStart'),
+          btnCapture: document.getElementById('btnCapture'),
+          btnStop: document.getElementById('btnStop'),
+          btnDelete: document.getElementById('btnDelete'),
+          userName: document.getElementById('userName'),
+          status: document.getElementById('status'),
+          results: document.getElementById('results'),
+          userList: document.getElementById('userList'),
+          progressBar: document.querySelector('.progress-bar'),
+          poseText: document.getElementById('poseText')
+        };
       }
-      user.embeddings.push(emb);
-      localStorage.setItem('faceDB', JSON.stringify(faceDB));
-    }
 
-    async function init() {
-      try {
-        const fileset = await vision.FilesetResolver.forVisionTasks(
-          'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision/wasm'
-        );
-        faceDetector = await vision.FaceDetector.createFromOptions(fileset, {
-          baseOptions: {
-            modelAssetPath:
-              'https://storage.googleapis.com/mediapipe-models/face_detector/blaze_face_short_range/float16/latest/blaze_face_short_range.tflite',
-            delegate: 'GPU',
-          },
-          runningMode: 'VIDEO',
-          minDetectionConfidence: 0.85,
-        });
-        status.textContent = '🟢 Sistema pronto';
-      } catch (e) {
-        status.textContent = '🔴 Erro IA: ' + e.message;
+      initializeEventListeners() {
+        this.elements.btnStart.addEventListener('click', () => this.startCamera());
+        this.elements.btnCapture.addEventListener('click', () => this.startCapture());
+        this.elements.btnStop.addEventListener('click', () => this.stopCamera());
+        this.elements.btnDelete.addEventListener('click', () => this.deleteUser());
       }
-    }
 
-    async function frameLoop() {
-      if (!faceDetector || !cameraStream) return;
-      const now = performance.now();
-      const res = await faceDetector.detectForVideo(video, now);
-      if (res.detections.length) {
-        const emb = res.detections[0].keypoints.flatMap((p) => [p.x, p.y]);
-        if (isCapturing && now - lastCapture > DELAY) {
-          lastCapture = now;
-          captureCount++;
-          status.textContent = `📸 Captura ${captureCount}/${TOTAL} — Vire o rosto para lados e cima/baixo`;
-          saveEmbedding(emb);
-          if (captureCount >= TOTAL) stopCapture();
+      async initializeFaceDetector() {
+        try {
+          const fileset = await vision.FilesetResolver.forVisionTasks(
+            'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision/wasm'
+          );
+          
+          this.faceDetector = await vision.FaceDetector.createFromOptions(fileset, {
+            baseOptions: {
+              modelAssetPath: 'https://storage.googleapis.com/mediapipe-models/face_detector/blaze_face_short_range/float16/latest/blaze_face_short_range.tflite',
+              delegate: 'GPU',
+            },
+            runningMode: 'VIDEO',
+            minDetectionConfidence: 0.85,
+          });
+          
+          this.updateStatus('🟢 Sistema pronto');
+        } catch (error) {
+          this.handleError(`Erro na inicialização: ${error.message}`);
         }
-        if (!isCapturing) recognize(emb);
+      }
+
+      async startCamera() {
+        try {
+          this.cameraStream = await navigator.mediaDevices.getUserMedia({ 
+            video: { 
+              facingMode: 'user',
+              width: { ideal: 1280 },
+              height: { ideal: 720 }
+            } 
+          });
+          
+          this.video.srcObject = this.cameraStream;
+          await this.initializeFaceDetector();
+          this.detectionLoop();
+          this.updateControls(true);
+          this.updateStatus('🟢 Câmera ativa');
+        } catch (error) {
+          this.handleError(`Erro na câmera: ${error.message}`);
+        }
+      }
+
+      async detectionLoop() {
+        if (!this.faceDetector) return;
+        
+        const detect = async () => {
+          if (this.video.readyState < 2) return;
+          
+          const detections = await this.faceDetector.detectForVideo(
+            this.video, 
+            performance.now()
+          );
+
+          if (detections.detections.length > 0) {
+            this.processDetection(detections.detections[0]);
+          }
+          
+          requestAnimationFrame(detect);
+        };
+        
+        detect();
+      }
+
+      processDetection(detection) {
+        this.drawFaceOverlay(detection);
+        const embedding = detection.keypoints.flatMap(p => [p.x, p.y]);
+        
+        if (this.isCapturing) {
+          this.handleCapture(embedding);
+        } else {
+          this.handleRecognition(embedding);
+        }
+      }
+
+      drawFaceOverlay(detection) {
+        const canvas = document.createElement('canvas');
+        const rect = detection.boundingBox;
+        canvas.className = 'face-overlay';
+        canvas.style.width = `${rect.width}px`;
+        canvas.style.height = `${rect.height}px`;
+        canvas.style.left = `${rect.originX}px`;
+        canvas.style.top = `${rect.originY}px`;
+        
+        const container = document.querySelector('.video-container');
+        container.querySelectorAll('.face-overlay').forEach(el => el.remove());
+        container.appendChild(canvas);
+      }
+
+      startCapture() {
+        if (!this.validateName()) return;
+        
+        this.isCapturing = true;
+        this.captureCount = 0;
+        this.currentPose = 0;
+        this.updateProgress(0);
+        this.updatePoseInstruction();
+        this.elements.btnCapture.disabled = true;
+        this.updateStatus('⏳ Capturando poses...');
+      }
+
+      handleCapture(embedding) {
+        if (this.captureCount >= 20) return this.stopCapture();
+        
+        if (performance.now() - this.lastCapture > 250) {
+          this.captureCount++;
+          this.lastCapture = performance.now();
+          this.saveEmbedding(embedding);
+          this.updateProgress((this.captureCount / 20) * 100);
+          
+          if (this.captureCount % 4 === 0) {
+            this.currentPose++;
+            this.updatePoseInstruction();
+          }
+        }
+      }
+
+      saveEmbedding(embedding) {
+        const user = this.faceDB.users.find(u => u.name === this.elements.userName.value.trim()) || 
+          { name: this.elements.userName.value.trim(), embeddings: [] };
+        
+        if (!user.embeddings) user.embeddings = [];
+        user.embeddings.push(embedding);
+        
+        if (!this.faceDB.users.some(u => u.name === user.name)) {
+          this.faceDB.users.push(user);
+        }
+        
+        localStorage.setItem('faceDB', JSON.stringify(this.faceDB));
+      }
+
+      handleRecognition(embedding) {
+        const matches = this.faceDB.users.flatMap(user => 
+          user.embeddings.map(emb => ({
+            name: user.name,
+            similarity: this.calculateSimilarity(emb, embedding)
+          }))
+        );
+        
+        const bestMatch = matches.sort((a, b) => b.similarity - a.similarity)[0];
+        
+        if (bestMatch && bestMatch.similarity > 0.85) {
+          this.elements.results.textContent = `👋 Bem-vindo, ${bestMatch.name}! (${Math.round(bestMatch.similarity * 100)}%)`;
+        } else {
+          this.elements.results.textContent = '';
+        }
+      }
+
+      calculateSimilarity(a, b) {
+        const dotProduct = a.reduce((sum, val, i) => sum + val * b[i], 0);
+        const magnitudeA = Math.sqrt(a.reduce((sum, val) => sum + val ** 2, 0));
+        const magnitudeB = Math.sqrt(b.reduce((sum, val) => sum + val ** 2, 0));
+        return dotProduct / (magnitudeA * magnitudeB);
+      }
+
+      stopCapture() {
+        this.isCapturing = false;
+        this.elements.btnCapture.disabled = false;
+        this.updateStatus(`✅ ${this.elements.userName.value.trim()} cadastrado com sucesso!`);
+        this.elements.userName.value = '';
+        this.updateUserList();
+      }
+
+      updateControls(cameraActive) {
+        this.elements.btnStart.disabled = cameraActive;
+        this.elements.btnStop.disabled = !cameraActive;
+        this.elements.btnCapture.disabled = !cameraActive;
+      }
+
+      updateStatus(message) {
+        this.elements.status.textContent = message;
+      }
+
+      updateProgress(percentage) {
+        this.elements.progressBar.style.width = `${percentage}%`;
+      }
+
+      updatePoseInstruction() {
+        const instructions = [
+          'Olhe diretamente para a câmera',
+          'Vire a cabeça para a esquerda',
+          'Vire a cabeça para a direita',
+          'Olhe para cima',
+          'Olhe para baixo'
+        ];
+        this.elements.poseText.textContent = instructions[this.currentPose % 5];
+      }
+
+      validateName() {
+        const name = this.elements.userName.value.trim();
+        if (!name) {
+          this.showAlert('Por favor, digite seu nome completo!');
+          return false;
+        }
+        if (this.faceDB.users.some(u => u.name === name)) {
+          this.showAlert('Este nome já está cadastrado!');
+          return false;
+        }
+        return true;
+      }
+
+      showAlert(message) {
+        const alert = document.createElement('div');
+        alert.className = 'alert';
+        alert.textContent = message;
+        document.body.appendChild(alert);
+        setTimeout(() => alert.remove(), 3000);
+      }
+
+      updateUserList() {
+        this.elements.userList.innerHTML = '';
+        this.faceDB.users.forEach(user => {
+          const option = document.createElement('option');
+          option.value = user.name;
+          option.textContent = `${user.name} (${user.embeddings.length} amostras)`;
+          this.elements.userList.appendChild(option);
+        });
+      }
+
+      deleteUser() {
+        const selected = this.elements.userList.value;
+        if (!selected) return this.showAlert('Selecione um usuário para excluir!');
+        
+        if (confirm(`Tem certeza que deseja excluir ${selected}?`)) {
+          this.faceDB.users = this.faceDB.users.filter(u => u.name !== selected);
+          localStorage.setItem('faceDB', JSON.stringify(this.faceDB));
+          this.updateUserList();
+          this.updateStatus(`🗑️ ${selected} removido com sucesso`);
+        }
+      }
+
+      stopCamera() {
+        if (this.cameraStream) {
+          this.cameraStream.getTracks().forEach(track => track.stop());
+          this.video.srcObject = null;
+        }
+        this.updateControls(false);
+        this.updateStatus('⏹️ Câmera desativada');
+        document.querySelectorAll('.face-overlay').forEach(el => el.remove());
+      }
+
+      handleError(message) {
+        this.updateStatus(`🔴 Erro: ${message}`);
+        console.error(message);
       }
     }
 
-    function startCapture() {
-      if (!userName.value.trim()) return alert('Digite um nome!');
-      isCapturing = true;
-      captureCount = 0;
-      lastCapture = 0;
-      btnCapture.disabled = true;
-      status.textContent = '⏳ Preparando captura...';
-      setTimeout(() => {
-        status.textContent = '📸 Capturando fotos...';
-      }, 500);
-    }
-
-    function stopCapture() {
-      isCapturing = false;
-      btnCapture.disabled = false;
-      status.textContent = `✅ ${userName.value.trim()} cadastrado com sucesso!`;
-      userName.value = '';
-      updateList();
-    }
-
-    function updateList() {
-      userList.innerHTML = '';
-      faceDB.users.forEach((u) => {
-        const o = document.createElement('option');
-        o.value = u.name;
-        o.textContent = `${u.name} (${u.embeddings.length} fotos)`;
-        userList.append(o);
-      });
-    }
-
-    btnStart.onclick = async () => {
-      cameraStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } });
-      video.srcObject = cameraStream;
-      await init();
-      loopInterval = setInterval(frameLoop, 100);
-      btnStart.disabled = true;
-      btnStop.disabled = false;
-      btnCapture.disabled = false;
-      status.textContent = '🟢 Câmera ativa';
-    };
-
-    btnCapture.onclick = startCapture;
-
-    btnStop.onclick = () => {
-      cameraStream.getTracks().forEach((t) => t.stop());
-      video.srcObject = null;
-      clearInterval(loopInterval);
-      btnStart.disabled = false;
-      btnStop.disabled = true;
-      btnCapture.disabled = true;
-      status.textContent = '⏹️ Câmera parada';
-      results.textContent = '';
-    };
-
-    btnDelete.onclick = () => {
-      const sel = userList.value;
-      faceDB.users = faceDB.users.filter((u) => u.name !== sel);
-      localStorage.setItem('faceDB', JSON.stringify(faceDB));
-      updateList();
-      status.textContent = `🗑️ ${sel} removido`;
-    };
-
-    updateList();
+    const faceSystem = new FacialRecognitionSystem();
+    faceSystem.updateUserList();
   </script>
 </body>
 </html>
