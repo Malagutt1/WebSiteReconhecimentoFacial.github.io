@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <link rel="stylesheet" href="styles.css">
+  <title>Sistema de Reconhecimento Facial</title>
+</head>
+<body>
+  <div class="container">
+    <h1>🤖 Sistema de Reconhecimento Facial 🤖</h1>
+    <div class="split">
+      <div class="panel">
+        <h2>📋 INSTRUÇÕES</h2>
+        <ol>
+          <li>Clique em “Ligar Câmera”</li>
+          <li>Digite seu nome completo</li>
+          <li>Clique em “Capturar Rosto (20x)”</li>
+          <li>Aguarde até o status confirmar</li>
+          <li>Veja seu nome na lista</li>
+          <li>Selecione e clique em “Excluir” para remover</li>
+        </ol>
+      </div>
+      <div class="panel">
+        <div class="video-container"><video id="videoFeed" autoplay playsinline></video></div>
+        <div class="controls">
+          <button id="btnStart">🎥 Ligar Câmera</button>
+          <button id="btnCapture" disabled>📸 Capturar Rosto (20x)</button>
+          <button id="btnStop" disabled>⏹️ Desligar Câmera</button>
+        </div>
+        <input type="text" id="userName" placeholder="Digite seu nome completo"/>
+        <div id="status">🔴 Status: Aguardando inicialização</div>
+        <div id="results"></div>
+        <div class="manage">
+          <select id="userList" multiple></select>
+          <button id="btnDelete">🗑️ Excluir Cadastro</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script type="module">
+    import * as vision from 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision/vision_bundle.mjs';
+
+    const video = document.getElementById('videoFeed');
+    const btnStart = document.getElementById('btnStart');
+    const btnCapture = document.getElementById('btnCapture');
+    const btnStop = document.getElementById('btnStop');
+    const userName = document.getElementById('userName');
+    const status = document.getElementById('status');
+    const results = document.getElementById('results');
+    const userList = document.getElementById('userList');
+    const btnDelete = document.getElementById('btnDelete');
+
+    let faceDetector, cameraStream;
+    let isCapturing = false, captureCount = 0;
+    const TOTAL = 20, DELAY = 250;
+    let lastCapture = 0;
+    let loopInterval;
+
+    async function saveEmbedding(emb) {
+      const name = userName.value.trim();
+      if (!name) return alert('Digite um nome!');
+
+      // Enviar dados para o servidor
+      const response = await fetch('http://localhost:3000/register', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ name, embeddings: [emb] }),  // Envia o embedding para o servidor
+      });
+
+      const data = await response.json();
+      if (response.ok) {
+        status.textContent = `✅ ${name} cadastrado!`;
+        updateList();
+      } else {
+        status.textContent = `❌ Erro: ${data.message}`;
+      }
+    }
+
+    async function updateList() {
+      const response = await fetch('http://localhost:3000/users');
+      const users = await response.json();
+      userList.innerHTML = '';
+      users.forEach((user) => {
+        const option = document.createElement('option');
+        option.value = user.name;
+        option.textContent = `${user.name} (${user.embeddings.length} fotos)`;
+        userList.append(option);
+      });
+    }
+
+    btnStart.onclick = async () => {
+      cameraStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } });
+      video.srcObject = cameraStream;
+      await init();
+      loopInterval = setInterval(frameLoop, 100);
+      btnStart.disabled = true;
+      btnStop.disabled = false;
+      btnCapture.disabled = false;
+      status.textContent = '🟢 Câmera ativa';
+    };
+
+    // Função para remover um usuário
+    btnDelete.onclick = async () => {
+      const name = userList.value;
+      const response = await fetch(`http://localhost:3000/delete/${name}`, {
+        method: 'DELETE',
+      });
+      const data = await response.json();
+      if (response.ok) {
+        status.textContent = `🗑️ ${name} removido`;
+        updateList();
+      }
+    };
+
+    updateList();
+  </script>
+</body>
+</html>
