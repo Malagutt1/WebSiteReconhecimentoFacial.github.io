@@ -56,131 +56,39 @@
     let isCapturing = false, captureCount = 0;
     const TOTAL = 20, DELAY = 250;
     let lastCapture = 0;
-    let loopInterval;
 
-    // Função para recuperar usuários do localStorage
-    function loadUsers() {
-      const users = JSON.parse(localStorage.getItem('users')) || [];
-      return users;
+    let faceDB = JSON.parse(localStorage.getItem('faceDB') || '{"users":[]}');
+
+    function recognize(emb) {
+      let best = { name: '', dist: Infinity };
+      faceDB.users.forEach((u) => {
+        u.embeddings.forEach((e) => {
+          const d = Math.hypot(...e.map((v, i) => v - emb[i]));
+          if (d < best.dist) {
+            best = { name: u.name, dist: d };
+          }
+        });
+      });
+
+      const confidenceThreshold = 0.4;
+      if (best.dist < confidenceThreshold) {
+        results.textContent = `👋 Bem-vindo, ${best.name}! (${Math.round((1 - best.dist) * 100)}%)`;
+      } else {
+        results.textContent = '';
+      }
     }
 
-    // Função para salvar usuários no localStorage
-    function saveUsers(users) {
-      localStorage.setItem('users', JSON.stringify(users));
-    }
-
-    // Função para salvar os embeddings no localStorage
     function saveEmbedding(emb) {
       const name = userName.value.trim();
-      if (!name) return alert('Digite um nome!');
-
-      // Recupera os usuários já cadastrados
-      let users = loadUsers();
-
-      // Verifica se o nome já existe
-      const existingUser = users.find(user => user.name === name);
-      if (existingUser) {
-        existingUser.embeddings.push(emb);
-      } else {
-        users.push({ name, embeddings: [emb] });
+      let user = faceDB.users.find((u) => u.name === name);
+      if (!user) {
+        user = { name, embeddings: [] };
+        faceDB.users.push(user);
       }
-
-      // Salva os dados atualizados no localStorage
-      saveUsers(users);
-      status.textContent = `✅ ${name} cadastrado!`;
-      updateList();
+      user.embeddings.push(emb);
+      localStorage.setItem('faceDB', JSON.stringify(faceDB));
     }
 
-    // Função para atualizar a lista de usuários no frontend
-    function updateList() {
-      const users = loadUsers();
-      userList.innerHTML = '';
-      users.forEach((user) => {
-        const option = document.createElement('option');
-        option.value = user.name;
-        option.textContent = `${user.name} (${user.embeddings.length} fotos)`;
-        userList.append(option);
-      });
-    }
-
-    // Função para excluir um usuário
-    function deleteUser() {
-      const selectedName = userList.value;
-      if (!selectedName) return;
-
-      // Recupera os usuários
-      let users = loadUsers();
-
-      // Filtra o usuário selecionado
-      users = users.filter(user => user.name !== selectedName);
-
-      // Salva novamente no localStorage
-      saveUsers(users);
-      updateList();
-      status.textContent = `🗑️ ${selectedName} removido`;
-    }
-
-    // Função para iniciar a captura de vídeo
-    btnStart.onclick = async () => {
-      cameraStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } });
-      video.srcObject = cameraStream;
-      await init();
-      loopInterval = setInterval(frameLoop, 100);
-      btnStart.disabled = true;
-      btnStop.disabled = false;
-      btnCapture.disabled = false;
-      status.textContent = '🟢 Câmera ativa';
-    };
-
-    // Função para parar a captura de vídeo
-    btnStop.onclick = () => {
-      cameraStream.getTracks().forEach((t) => t.stop());
-      video.srcObject = null;
-      clearInterval(loopInterval);
-      btnStart.disabled = false;
-      btnStop.disabled = true;
-      btnCapture.disabled = true;
-      status.textContent = '⏹️ Câmera parada';
-      results.textContent = '';
-    };
-
-    // Função para capturar o rosto
-    btnCapture.onclick = async () => {
-      isCapturing = true;
-      captureCount = 0;
-      lastCapture = 0;
-      btnCapture.disabled = true;
-      status.textContent = '⏳ Preparando captura...';
-      setTimeout(() => (status.textContent = '📸 Capturando fotos...'), 500);
-    };
-
-    // Função de detecção e captura de rostos
-    async function frameLoop() {
-      if (!faceDetector || !cameraStream) return;
-      const now = performance.now();
-      const res = await faceDetector.detectForVideo(video, now);
-      if (res.detections.length) {
-        const emb = res.detections[0].keypoints.flatMap((p) => [p.x, p.y]);
-        if (isCapturing && now - lastCapture > DELAY) {
-          lastCapture = now;
-          captureCount++;
-          status.textContent = `📸 Capturando ${captureCount}/${TOTAL}`;
-          saveEmbedding(emb);
-          if (captureCount >= TOTAL) stopCapture();
-        }
-      }
-    }
-
-    // Função para parar a captura
-    function stopCapture() {
-      isCapturing = false;
-      btnCapture.disabled = false;
-      status.textContent = `✅ ${userName.value.trim()} cadastrado!`;
-      userName.value = '';
-      updateList();
-    }
-
-    // Inicializa a detecção de rostos
     async function init() {
       try {
         const fileset = await vision.FilesetResolver.forVisionTasks(
@@ -201,10 +109,83 @@
       }
     }
 
-    // Função para excluir um usuário
-    btnDelete.onclick = deleteUser;
+    async function frameLoop() {
+      if (!faceDetector || !cameraStream) return;
+      const now = performance.now();
+      const res = await faceDetector.detectForVideo(video, now);
+      if (res.detections.length) {
+        const emb = res.detections[0].keypoints.flatMap((p) => [p.x, p.y]);
+        if (isCapturing && now - lastCapture > DELAY) {
+          lastCapture = now;
+          captureCount++;
+          status.textContent = `📸 Capturando ${captureCount}/${TOTAL}`;
+          saveEmbedding(emb);
+          if (captureCount >= TOTAL) stopCapture();
+        }
+        if (!isCapturing) recognize(emb);
+      }
+      requestAnimationFrame(frameLoop);
+    }
 
-    // Carregar a lista de usuários quando a página carregar
+    function startCapture() {
+      if (!userName.value.trim()) return alert('Digite um nome!');
+      isCapturing = true;
+      captureCount = 0;
+      lastCapture = 0;
+      btnCapture.disabled = true;
+      status.textContent = '⏳ Preparando captura...';
+      setTimeout(() => (status.textContent = '📸 Capturando fotos...'), 500);
+    }
+
+    function stopCapture() {
+      isCapturing = false;
+      btnCapture.disabled = false;
+      status.textContent = `✅ ${userName.value.trim()} cadastrado!`;
+      userName.value = '';
+      updateList();
+    }
+
+    function updateList() {
+      userList.innerHTML = '';
+      faceDB.users.forEach((u) => {
+        const o = document.createElement('option');
+        o.value = u.name;
+        o.textContent = `${u.name} (${u.embeddings.length} fotos)`;
+        userList.append(o);
+      });
+    }
+
+    btnStart.onclick = async () => {
+      cameraStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } });
+      video.srcObject = cameraStream;
+      await init();
+      frameLoop();
+      btnStart.disabled = true;
+      btnStop.disabled = false;
+      btnCapture.disabled = false;
+      status.textContent = '🟢 Câmera ativa';
+    };
+
+    btnCapture.onclick = startCapture;
+
+    btnStop.onclick = () => {
+      cameraStream.getTracks().forEach((t) => t.stop());
+      video.srcObject = null;
+      btnStart.disabled = false;
+      btnStop.disabled = true;
+      btnCapture.disabled = true;
+      status.textContent = '⏹️ Câmera parada';
+      results.textContent = '';
+    };
+
+    btnDelete.onclick = () => {
+      const sel = userList.value;
+      faceDB.users = faceDB.users.filter((u) => u.name !== sel);
+      localStorage.setItem('faceDB', JSON.stringify(faceDB));
+      updateList();
+      status.textContent = `🗑️ ${sel} removido`;
+    };
+
     updateList();
   </script>
 </body>
