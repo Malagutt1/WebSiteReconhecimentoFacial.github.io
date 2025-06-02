@@ -58,31 +58,42 @@
     let lastCapture = 0;
     let loopInterval;
 
-    async function saveEmbedding(emb) {
+    // Função para recuperar usuários do localStorage
+    function loadUsers() {
+      const users = JSON.parse(localStorage.getItem('users')) || [];
+      return users;
+    }
+
+    // Função para salvar usuários no localStorage
+    function saveUsers(users) {
+      localStorage.setItem('users', JSON.stringify(users));
+    }
+
+    // Função para salvar os embeddings no localStorage
+    function saveEmbedding(emb) {
       const name = userName.value.trim();
       if (!name) return alert('Digite um nome!');
 
-      // Enviar dados para o servidor
-      const response = await fetch('http://localhost:3000/register', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ name, embeddings: [emb] }),  // Envia o embedding para o servidor
-      });
+      // Recupera os usuários já cadastrados
+      let users = loadUsers();
 
-      const data = await response.json();
-      if (response.ok) {
-        status.textContent = `✅ ${name} cadastrado!`;
-        updateList();
+      // Verifica se o nome já existe
+      const existingUser = users.find(user => user.name === name);
+      if (existingUser) {
+        existingUser.embeddings.push(emb);
       } else {
-        status.textContent = `❌ Erro: ${data.message}`;
+        users.push({ name, embeddings: [emb] });
       }
+
+      // Salva os dados atualizados no localStorage
+      saveUsers(users);
+      status.textContent = `✅ ${name} cadastrado!`;
+      updateList();
     }
 
-    async function updateList() {
-      const response = await fetch('http://localhost:3000/users');
-      const users = await response.json();
+    // Função para atualizar a lista de usuários no frontend
+    function updateList() {
+      const users = loadUsers();
       userList.innerHTML = '';
       users.forEach((user) => {
         const option = document.createElement('option');
@@ -92,6 +103,24 @@
       });
     }
 
+    // Função para excluir um usuário
+    function deleteUser() {
+      const selectedName = userList.value;
+      if (!selectedName) return;
+
+      // Recupera os usuários
+      let users = loadUsers();
+
+      // Filtra o usuário selecionado
+      users = users.filter(user => user.name !== selectedName);
+
+      // Salva novamente no localStorage
+      saveUsers(users);
+      updateList();
+      status.textContent = `🗑️ ${selectedName} removido`;
+    }
+
+    // Função para iniciar a captura de vídeo
     btnStart.onclick = async () => {
       cameraStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } });
       video.srcObject = cameraStream;
@@ -103,22 +132,80 @@
       status.textContent = '🟢 Câmera ativa';
     };
 
-    // Função para remover um usuário
-    btnDelete.onclick = async () => {
-      const name = userList.value;
-      const response = await fetch(`http://localhost:3000/delete/${name}`, {
-        method: 'DELETE',
-      });
-      const data = await response.json();
-      if (response.ok) {
-        status.textContent = `🗑️ ${name} removido`;
-        updateList();
-      }
+    // Função para parar a captura de vídeo
+    btnStop.onclick = () => {
+      cameraStream.getTracks().forEach((t) => t.stop());
+      video.srcObject = null;
+      clearInterval(loopInterval);
+      btnStart.disabled = false;
+      btnStop.disabled = true;
+      btnCapture.disabled = true;
+      status.textContent = '⏹️ Câmera parada';
+      results.textContent = '';
     };
 
+    // Função para capturar o rosto
+    btnCapture.onclick = async () => {
+      isCapturing = true;
+      captureCount = 0;
+      lastCapture = 0;
+      btnCapture.disabled = true;
+      status.textContent = '⏳ Preparando captura...';
+      setTimeout(() => (status.textContent = '📸 Capturando fotos...'), 500);
+    };
+
+    // Função de detecção e captura de rostos
+    async function frameLoop() {
+      if (!faceDetector || !cameraStream) return;
+      const now = performance.now();
+      const res = await faceDetector.detectForVideo(video, now);
+      if (res.detections.length) {
+        const emb = res.detections[0].keypoints.flatMap((p) => [p.x, p.y]);
+        if (isCapturing && now - lastCapture > DELAY) {
+          lastCapture = now;
+          captureCount++;
+          status.textContent = `📸 Capturando ${captureCount}/${TOTAL}`;
+          saveEmbedding(emb);
+          if (captureCount >= TOTAL) stopCapture();
+        }
+      }
+    }
+
+    // Função para parar a captura
+    function stopCapture() {
+      isCapturing = false;
+      btnCapture.disabled = false;
+      status.textContent = `✅ ${userName.value.trim()} cadastrado!`;
+      userName.value = '';
+      updateList();
+    }
+
+    // Inicializa a detecção de rostos
+    async function init() {
+      try {
+        const fileset = await vision.FilesetResolver.forVisionTasks(
+          'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision/wasm'
+        );
+        faceDetector = await vision.FaceDetector.createFromOptions(fileset, {
+          baseOptions: {
+            modelAssetPath:
+              'https://storage.googleapis.com/mediapipe-models/face_detector/blaze_face_short_range/float16/latest/blaze_face_short_range.tflite',
+            delegate: 'GPU',
+          },
+          runningMode: 'VIDEO',
+          minDetectionConfidence: 0.85,
+        });
+        status.textContent = '🟢 Sistema pronto';
+      } catch (e) {
+        status.textContent = '🔴 Erro IA: ' + e.message;
+      }
+    }
+
+    // Função para excluir um usuário
+    btnDelete.onclick = deleteUser;
+
+    // Carregar a lista de usuários quando a página carregar
     updateList();
   </script>
 </body>
 </html>
-
-<!-- npm install express mongoose body-parser cors -->

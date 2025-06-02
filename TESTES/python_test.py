@@ -17,6 +17,7 @@ known_face_encodings = [
     obama_face_encoding,
     biden_face_encoding
 ]
+
 known_face_names = [
     "Barack Obama",
     "Joe Biden"
@@ -86,3 +87,4 @@ while True:
 video_capture.release()
 cv2.destroyAllWindows()
 
+""" pip install face_recognition opencv-python numpy """  
