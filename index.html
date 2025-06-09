@@ -349,7 +349,7 @@
     let faceLandmarker;
 
     // Carregar banco de dados de faces
-    let faceDB = JSON.parse(localStorage.getItem('faceDB') || '{"users":[]}';
+    let faceDB = JSON.parse(localStorage.getItem('faceDB') || '{"users":[]}');
     if (typeof faceDB === 'string') {
       faceDB = JSON.parse(faceDB);
     }
