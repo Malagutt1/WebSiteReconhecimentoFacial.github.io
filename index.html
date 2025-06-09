@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
-  <title>Sistema de Reconhecimento Facial</title>
+  <title>Sistema de Reconhecimento Facial Avançado</title>
   <style>
     * {
       margin: 0;
@@ -107,6 +107,23 @@
       width: 100%;
       height: 100%;
       object-fit: cover;
+    }
+    
+    .canvas-container {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 10;
+    }
+    
+    #faceCanvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
     }
     
     .controls {
@@ -244,17 +261,6 @@
       border-bottom: 1px solid #444;
     }
     
-    .facial-point {
-      position: absolute;
-      width: 4px;
-      height: 4px;
-      background: #ff0;
-      border-radius: 50%;
-      transform: translate(-50%, -50%);
-      box-shadow: 0 0 5px #ff0;
-      z-index: 10;
-    }
-    
     @media (max-width: 768px) {
       .split {
         flex-direction: column;
@@ -299,6 +305,9 @@
       <div class="panel">
         <div class="video-container">
           <video id="videoFeed" autoplay playsinline></video>
+          <div class="canvas-container">
+            <canvas id="faceCanvas"></canvas>
+          </div>
         </div>
         <div class="controls">
           <button id="btnStart">🎥 Ligar Câmera</button>
@@ -328,7 +337,10 @@
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js" crossorigin="anonymous"></script>
   
   <script>
+    // Elementos DOM
     const video = document.getElementById('videoFeed');
+    const canvas = document.getElementById('faceCanvas');
+    const ctx = canvas.getContext('2d');
     const btnStart = document.getElementById('btnStart');
     const btnCapture = document.getElementById('btnCapture');
     const btnStop = document.getElementById('btnStop');
@@ -339,19 +351,29 @@
     const btnDelete = document.getElementById('btnDelete');
     const progressBar = document.getElementById('progressBar');
 
+    // Variáveis de estado
     let cameraStream;
     let isCapturing = false, captureCount = 0;
     const TOTAL_CAPTURES = 20, CAPTURE_DELAY = 250;
     let lastCapture = 0;
-    let animationId;
-    let lastDetectionTime = 0;
-    const DETECTION_INTERVAL = 100; // 10 FPS
-    let faceLandmarker;
+    let faceMesh;
+    let faceDB = { users: [] };
+    let currentEmbedding = null;
+    let lastFaceDetection = 0;
+    const DETECTION_INTERVAL = 300; // ms entre detecções
 
     // Carregar banco de dados de faces
-    let faceDB = JSON.parse(localStorage.getItem('faceDB') || '{"users":[]}';
-    if (typeof faceDB === 'string') {
-      faceDB = JSON.parse(faceDB);
+    function loadFaceDB() {
+      const savedDB = localStorage.getItem('faceDB');
+      if (savedDB) {
+        try {
+          faceDB = JSON.parse(savedDB);
+        } catch (e) {
+          console.error("Erro ao carregar banco de dados:", e);
+          faceDB = { users: [] };
+        }
+      }
+      updateUserList();
     }
 
     // Função para calcular similaridade de cosseno
@@ -388,8 +410,8 @@
         });
       });
 
-      // Limiar de confiança
-      const confidenceThreshold = 0.65;
+      // Limiar de confiança ajustado
+      const confidenceThreshold = 0.75;
       
       if (bestMatch.similarity > confidenceThreshold) {
         const confidencePercent = Math.round(bestMatch.similarity * 100);
@@ -417,93 +439,156 @@
     }
 
     // Inicializar o modelo de detecção facial
-    async function initFaceLandmarker() {
+    async function initFaceMesh() {
       try {
-        // Simulação do modelo - na implementação real, usaríamos o MediaPipe
+        faceMesh = new FaceMesh({
+          locateFile: (file) => {
+            return `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`;
+          }
+        });
+        
+        faceMesh.setOptions({
+          maxNumFaces: 1,
+          refineLandmarks: true,
+          minDetectionConfidence: 0.5,
+          minTrackingConfidence: 0.5
+        });
+        
+        faceMesh.onResults(onFaceResults);
+        
         status.textContent = '🟢 Sistema pronto para detecção facial';
         status.className = 'ready';
+        return true;
       } catch (error) {
         status.textContent = '🔴 Erro ao inicializar IA: ' + error.message;
         status.className = 'warning';
         console.error('Erro na inicialização:', error);
+        return false;
       }
     }
 
-    // Função para simular a detecção facial
-    async function detectFaces() {
-      if (!cameraStream) {
-        animationId = requestAnimationFrame(detectFaces);
-        return;
-      }
+    // Processar resultados da detecção facial
+    function onFaceResults(results) {
+      if (!video.videoWidth || !video.videoHeight) return;
       
-      const now = performance.now();
+      // Ajustar tamanho do canvas
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
       
-      // Controle de taxa de detecção
-      if (now - lastDetectionTime < DETECTION_INTERVAL) {
-        animationId = requestAnimationFrame(detectFaces);
-        return;
-      }
+      // Limpar canvas
+      ctx.save();
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
       
-      lastDetectionTime = now;
-      
-      try {
-        // Simulação de detecção facial
-        const hasFace = Math.random() > 0.2; // 80% de chance de detectar um rosto
-        
-        if (hasFace) {
-          // Simulação de pontos faciais
-          document.querySelectorAll('.facial-point').forEach(el => el.remove());
-          
-          const videoRect = video.getBoundingClientRect();
-          for (let i = 0; i < 20; i++) {
-            const point = document.createElement('div');
-            point.className = 'facial-point';
-            
-            // Posições aleatórias para simular pontos faciais
-            const x = Math.random() * videoRect.width;
-            const y = Math.random() * videoRect.height;
-            
-            point.style.left = `${x}px`;
-            point.style.top = `${y}px`;
-            video.parentNode.appendChild(point);
-          }
-          
-          // Simulação de embedding facial
-          const embedding = Array.from({length: 128}, () => Math.random());
-          
-          // Modo de captura
-          if (isCapturing) {
-            if (now - lastCapture > CAPTURE_DELAY) {
-              lastCapture = now;
-              captureCount++;
-              
-              // Atualizar barra de progresso
-              const progressPercent = (captureCount / TOTAL_CAPTURES) * 100;
-              progressBar.style.width = `${progressPercent}%`;
-              
-              status.textContent = `📸 Capturando ${captureCount}/${TOTAL_CAPTURES}`;
-              status.className = 'capturing';
-              
-              saveEmbedding(embedding);
-              
-              if (captureCount >= TOTAL_CAPTURES) {
-                stopCapture();
-              }
-            }
-          } 
-          // Modo de reconhecimento
-          else {
-            recognizeFace(embedding);
-          }
-        } else {
-          results.textContent = '👀 Nenhum rosto detectado';
-          results.style.color = '#ff9800';
+      if (results.multiFaceLandmarks) {
+        // Desenhar pontos faciais
+        for (const landmarks of results.multiFaceLandmarks) {
+          drawLandmarks(ctx, landmarks);
         }
-      } catch (error) {
-        console.error('Erro na detecção facial:', error);
+        
+        // Processar apenas uma face
+        if (results.multiFaceLandmarks.length > 0) {
+          const now = Date.now();
+          
+          // Limitar frequência de detecção
+          if (now - lastFaceDetection > DETECTION_INTERVAL) {
+            lastFaceDetection = now;
+            
+            // Criar embedding simplificado
+            const embedding = createFaceEmbedding(results.multiFaceLandmarks[0]);
+            currentEmbedding = embedding;
+            
+            // Modo de captura
+            if (isCapturing) {
+              if (now - lastCapture > CAPTURE_DELAY) {
+                lastCapture = now;
+                captureCount++;
+                
+                // Atualizar barra de progresso
+                const progressPercent = (captureCount / TOTAL_CAPTURES) * 100;
+                progressBar.style.width = `${progressPercent}%`;
+                
+                status.textContent = `📸 Capturando ${captureCount}/${TOTAL_CAPTURES}`;
+                status.className = 'capturing';
+                
+                saveEmbedding(embedding);
+                
+                if (captureCount >= TOTAL_CAPTURES) {
+                  stopCapture();
+                }
+              }
+            } 
+            // Modo de reconhecimento
+            else {
+              recognizeFace(embedding);
+            }
+          }
+        }
+      } else {
+        results.textContent = '👀 Nenhum rosto detectado';
+        results.style.color = '#ff9800';
       }
       
-      animationId = requestAnimationFrame(detectFaces);
+      ctx.restore();
+    }
+
+    // Criar embedding facial a partir dos landmarks
+    function createFaceEmbedding(landmarks) {
+      // Selecionar pontos-chave para o embedding (olhos, nariz, boca, contorno)
+      const keyPoints = [
+        landmarks[10],  // Testa
+        landmarks[152], // Queixo
+        landmarks[33],  // Nariz
+        landmarks[263], // Olho esquerdo
+        landmarks[33],  // Olho direito
+        landmarks[61],  // Boca esquerda
+        landmarks[291], // Boca direita
+        landmarks[199]  // Centro do rosto
+      ];
+      
+      // Criar vetor de embedding
+      const embedding = [];
+      for (const point of keyPoints) {
+        embedding.push(point.x);
+        embedding.push(point.y);
+        embedding.push(point.z);
+      }
+      
+      return embedding;
+    }
+
+    // Desenhar pontos faciais
+    function drawLandmarks(ctx, landmarks) {
+      ctx.fillStyle = '#00FF00';
+      
+      // Desenhar pontos faciais
+      for (const point of landmarks) {
+        ctx.beginPath();
+        ctx.arc(point.x * canvas.width, point.y * canvas.height, 2, 0, 2 * Math.PI);
+        ctx.fill();
+      }
+      
+      // Desenhar contorno do rosto
+      ctx.strokeStyle = '#00FF00';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      
+      // Pontos de contorno (ajustados para Face Mesh)
+      const contourPoints = [10, 338, 297, 332, 284, 251, 389, 356, 454, 323, 361, 288, 
+                            397, 365, 379, 378, 400, 377, 152, 148, 176, 149, 150, 136, 
+                            172, 58, 132, 93, 234, 127, 162, 21, 54, 103, 67, 109];
+      
+      for (let i = 0; i < contourPoints.length; i++) {
+        const point = landmarks[contourPoints[i]];
+        if (i === 0) {
+          ctx.moveTo(point.x * canvas.width, point.y * canvas.height);
+        } else {
+          ctx.lineTo(point.x * canvas.width, point.y * canvas.height);
+        }
+      }
+      
+      ctx.closePath();
+      ctx.stroke();
     }
 
     // Iniciar captura de rostos
@@ -550,6 +635,22 @@
       });
     }
 
+    // Iniciar detecção facial
+    async function startFaceDetection() {
+      if (!video.videoWidth || !video.videoHeight) {
+        requestAnimationFrame(startFaceDetection);
+        return;
+      }
+      
+      try {
+        await faceMesh.send({image: video});
+        requestAnimationFrame(startFaceDetection);
+      } catch (error) {
+        console.error("Erro na detecção facial:", error);
+        setTimeout(() => startFaceDetection(), 100);
+      }
+    }
+
     // Event Listeners
     btnStart.addEventListener('click', async () => {
       try {
@@ -562,8 +663,13 @@
         });
         video.srcObject = cameraStream;
         
-        await initFaceLandmarker();
-        detectFaces();
+        // Aguardar o vídeo carregar
+        video.onloadedmetadata = async () => {
+          const initialized = await initFaceMesh();
+          if (initialized) {
+            startFaceDetection();
+          }
+        };
         
         btnStart.disabled = true;
         btnStop.disabled = false;
@@ -584,10 +690,6 @@
       if (cameraStream) {
         cameraStream.getTracks().forEach(track => track.stop());
         video.srcObject = null;
-      }
-      
-      if (animationId) {
-        cancelAnimationFrame(animationId);
       }
       
       btnStart.disabled = false;
@@ -613,8 +715,8 @@
       status.textContent = `🗑️ ${selectedUser} foi removido do sistema`;
     });
 
-    // Inicializar lista de usuários
-    updateUserList();
+    // Inicializar
+    loadFaceDB();
   </script>
 </body>
 </html>
