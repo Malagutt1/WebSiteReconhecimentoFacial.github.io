@@ -363,7 +363,6 @@
     const DETECTION_INTERVAL = 300; // ms entre detecções
 
     // Carregar banco de dados de faces
-<<<<<<< HEAD
     function loadFaceDB() {
       const savedDB = localStorage.getItem('faceDB');
       if (savedDB) {
@@ -375,11 +374,6 @@
         }
       }
       updateUserList();
-=======
-    let faceDB = JSON.parse(localStorage.getItem('faceDB') || '{"users":[]}');
-    if (typeof faceDB === 'string') {
-      faceDB = JSON.parse(faceDB);
->>>>>>> 5cff0f7cc0adcd139fb07a1200f8a500afb45110
     }
 
     // Função para calcular similaridade de cosseno
