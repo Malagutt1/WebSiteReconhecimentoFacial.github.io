@@ -1,58 +1,61 @@
 body {
-  font-family: Arial, sans-serif;
-  margin: 20px;
-  text-align: center;
-}
-
-.controls {
-  margin-bottom: 10px;
-}
-
-#username {
-  padding: 5px;
-  font-size: 16px;
-}
-
-button {
-  margin: 0 5px;
-  padding: 8px 12px;
-  font-size: 14px;
+  background-color: #f8f9fa;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
 }
 
 .video-container {
   position: relative;
   display: inline-block;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+  background-color: #000;
 }
 
 #videoElement, #outputCanvas {
   position: absolute;
   top: 0;
   left: 0;
+  width: 100%;
+  height: auto;
+  border-radius: 8px;
 }
 
-/* Esconde o vídeo e mostra apenas o canvas (o MediaPipe desenha nele) */
 #videoElement {
-  visibility: visible;
+  transform: scaleX(-1); /* Espelha a imagem da câmera */
 }
 
-/* Estilo para a lista de usuários */
-#userList {
-  list-style-type: none;
-  padding: 0;
-  max-width: 300px;
-  margin: 0 auto;
-}
-
-#userList li {
-  background: #f2f2f2;
-  padding: 5px;
-  margin: 5px 0;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
+#captureIndicator {
+  transition: opacity 0.3s;
+  text-shadow: 0 0 10px rgba(0,0,0,0.5);
 }
 
 #status {
-  margin: 10px 0;
-  font-weight: bold;
+  min-height: 30px;
+}
+
+#userList .list-group-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  transition: background-color 0.2s;
+}
+
+#userList .list-group-item:hover {
+  background-color: #f8f9fa;
+}
+
+.recognized {
+  animation: highlight 2s ease;
+}
+
+@keyframes highlight {
+  0% { background-color: #d1ecf1; }
+  50% { background-color: #0dcaf0; }
+  100% { background-color: #ffffff; }
+}
+
+.card {
+  border: none;
+  border-radius: 10px;
 }

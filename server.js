@@ -5,7 +5,7 @@ const app = express();
 const DATA_FILE = path.join(__dirname, 'faceData.json');
 
 app.use(express.json());
-app.use(express.static(__dirname)); // Serve arquivos estáticos (index.html, script.js, etc.)
+app.use(express.static(__dirname));
 
 // Garante que o arquivo faceData.json exista
 function ensureDataFile() {
@@ -17,56 +17,92 @@ function ensureDataFile() {
 // Carrega dados do arquivo
 function loadData() {
   ensureDataFile();
-  const data = fs.readFileSync(DATA_FILE);
-  return JSON.parse(data);
+  try {
+    const data = fs.readFileSync(DATA_FILE, 'utf8');
+    return JSON.parse(data);
+  } catch (err) {
+    console.error('Erro ao ler arquivo de dados:', err);
+    return { users: [] };
+  }
 }
 
 // Salva dados no arquivo
 function saveData(data) {
-  fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2));
+  try {
+    fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2));
+  } catch (err) {
+    console.error('Erro ao salvar dados:', err);
+  }
 }
 
 // GET /faces - retorna todos os usuários
 app.get('/faces', (req, res) => {
-  const data = loadData();
-  res.json(data);
+  try {
+    const data = loadData();
+    res.json(data);
+  } catch (err) {
+    res.status(500).json({ error: 'Erro interno do servidor' });
+  }
 });
 
 // POST /faces - adiciona um novo usuário
 app.post('/faces', (req, res) => {
-  const { name, embeddings } = req.body;
-  if (!name || !embeddings || !Array.isArray(embeddings) || embeddings.length === 0) {
-    return res.status(400).json({ error: 'Nome ou embeddings inválidos.' });
+  try {
+    const { name, embeddings } = req.body;
+    
+    if (!name || !embeddings || !Array.isArray(embeddings) || embeddings.length === 0) {
+      return res.status(400).json({ error: 'Nome ou embeddings inválidos.' });
+    }
+    
+    const data = loadData();
+    
+    // Verifica se usuário já existe
+    const userIndex = data.users.findIndex(u => u.name === name);
+    
+    if (userIndex !== -1) {
+      // Atualiza usuário existente
+      data.users[userIndex].embeddings = [
+        ...data.users[userIndex].embeddings,
+        ...embeddings
+      ];
+    } else {
+      // Adiciona novo usuário
+      data.users.push({ name, embeddings });
+    }
+    
+    saveData(data);
+    res.json({ message: 'Usuário salvo com sucesso.' });
+  } catch (err) {
+    res.status(500).json({ error: 'Erro interno do servidor' });
   }
-  const data = loadData();
-  // Verifica se usuário já existe
-  const exists = data.users.some(u => u.name === name);
-  if (exists) {
-    return res.status(400).json({ error: 'Usuário já cadastrado.' });
-  }
-  data.users.push({ name: name, embeddings: embeddings });
-  saveData(data);
-  res.json({ message: 'Usuário salvo com sucesso.' });
 });
 
 // DELETE /faces - exclui usuário pelo nome
 app.delete('/faces', (req, res) => {
-  const { name } = req.body;
-  if (!name) {
-    return res.status(400).json({ error: 'Nome inválido.' });
+  try {
+    const { name } = req.body;
+    
+    if (!name) {
+      return res.status(400).json({ error: 'Nome inválido.' });
+    }
+    
+    const data = loadData();
+    const initialLength = data.users.length;
+    data.users = data.users.filter(u => u.name !== name);
+    
+    if (data.users.length === initialLength) {
+      return res.status(404).json({ error: 'Usuário não encontrado.' });
+    }
+    
+    saveData(data);
+    res.json({ message: 'Usuário excluído com sucesso.' });
+  } catch (err) {
+    res.status(500).json({ error: 'Erro interno do servidor' });
   }
-  const data = loadData();
-  const filtered = data.users.filter(u => u.name !== name);
-  if (filtered.length === data.users.length) {
-    return res.status(404).json({ error: 'Usuário não encontrado.' });
-  }
-  data.users = filtered;
-  saveData(data);
-  res.json({ message: 'Usuário excluído.' });
 });
 
 // Inicia o servidor
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`Servidor rodando em http://localhost:${PORT}`);
 });

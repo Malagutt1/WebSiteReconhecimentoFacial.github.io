@@ -6,98 +6,145 @@ const startBtn = document.getElementById('startBtn');
 const stopBtn = document.getElementById('stopBtn');
 const captureBtn = document.getElementById('captureBtn');
 const usernameInput = document.getElementById('username');
-const statusDiv = document.getElementById('status');
+const statusText = document.getElementById('statusText');
+const statusSpinner = document.getElementById('statusSpinner');
 const userList = document.getElementById('userList');
+const captureIndicator = document.getElementById('captureIndicator');
+const deleteModal = new bootstrap.Modal('#deleteModal');
+const userToDelete = document.getElementById('userToDelete');
+const confirmDelete = document.getElementById('confirmDelete');
 
 let faceMesh;
 let camera;
 let capturing = false;
 let captureCount = 0;
-let embeddingsArray = []; // Armazena embeddings capturados para o novo usuário
-let facesDB = []; // Vai conter os dados de faceData.json
+let embeddingsArray = [];
+let facesDB = [];
+let deleteUserName = '';
+
+// Configurações
+const CAPTURE_LIMIT = 20;
+const RECOGNITION_THRESHOLD = 0.15;
+
+// Atualiza o status
+function updateStatus(text, showSpinner = false) {
+  statusText.textContent = text;
+  statusSpinner.classList.toggle('d-none', !showSpinner);
+}
 
 // Inicializa o FaceMesh
 faceMesh = new FaceMesh({
   locateFile: (file) => {
-    // Define de onde carregar os arquivos do FaceMesh
     return `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`;
   }
 });
+
 faceMesh.setOptions({
   maxNumFaces: 1,
-  refineLandmarks: false,
+  refineLandmarks: true,
   minDetectionConfidence: 0.5,
   minTrackingConfidence: 0.5
 });
+
 faceMesh.onResults(onResults);
 
 // Função que roda a cada resultado de detecção
 async function onResults(results) {
-  // Desenha o vídeo e os pontos faciais no canvas
   canvasCtx.save();
   canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
-  canvasCtx.drawImage(results.image, 0, 0, canvasElement.width, canvasElement.height);
+  
+  if (results.image) {
+    canvasCtx.drawImage(results.image, 0, 0, canvasElement.width, canvasElement.height);
+  }
+  
   if (results.multiFaceLandmarks && results.multiFaceLandmarks.length > 0) {
     // Desenha os pontos faciais
     for (const landmarks of results.multiFaceLandmarks) {
-      drawConnectors(canvasCtx, landmarks, FACEMESH_TESSELATION,
-                     { color: '#C0C0C070', lineWidth: 1 });
-      drawLandmarks(canvasCtx, landmarks, {color: 'red', lineWidth: 1});
+      drawConnectors(canvasCtx, landmarks, FACEMESH_TESSELATION, {
+        color: '#80C0FF70',
+        lineWidth: 1
+      });
     }
-    statusDiv.textContent = "Rosto detectado";
 
-    // Gera vetor de embedding a partir dos pontos (flatten x, y, z)
+    // Gera vetor de embedding
     const landmarks = results.multiFaceLandmarks[0];
     const embedding = [];
+    
     for (let i = 0; i < landmarks.length; i++) {
       embedding.push(landmarks[i].x);
       embedding.push(landmarks[i].y);
-      embedding.push(landmarks[i].z);
+      embedding.push(landmarks[i].z || 0);
     }
 
-    // Se estivermos no modo de captura (apertou botão de capturar)
     if (capturing) {
-      if (captureCount < 20) {
-        embeddingsArray.push(embedding);
-        captureCount++;
-        statusDiv.textContent = `Capturas: ${captureCount} de 20`;
-      }
-      // Se atingiu 20 capturas, envia ao servidor
-      if (captureCount === 20) {
-        saveUserEmbeddings();
-      }
+      handleCaptureProcess(embedding);
     } else {
-      // Se não estamos capturando um novo usuário, faz reconhecimento
       recognizeFace(embedding);
     }
   } else {
-    statusDiv.textContent = "Nenhum rosto detectado";
+    updateStatus("Nenhum rosto detectado");
   }
+  
   canvasCtx.restore();
 }
 
-// Inicia a câmera usando MediaPipe Camera
+// Manipula o processo de captura
+function handleCaptureProcess(embedding) {
+  if (captureCount < CAPTURE_LIMIT) {
+    // Efeito visual de captura
+    captureIndicator.style.opacity = '1';
+    setTimeout(() => {
+      captureIndicator.style.opacity = '0';
+    }, 200);
+    
+    embeddingsArray.push(embedding);
+    captureCount++;
+    updateStatus(`Capturando... ${captureCount}/${CAPTURE_LIMIT}`);
+  } else {
+    saveUserEmbeddings();
+  }
+}
+
+// Inicia a câmera
 startBtn.addEventListener('click', () => {
-  const constraints = { video: { width: 640, height: 480 } };
+  if (camera && camera.isActive()) return;
+  
+  const constraints = {
+    video: {
+      width: { ideal: 640 },
+      height: { ideal: 480 },
+      facingMode: 'user'
+    }
+  };
+
   navigator.mediaDevices.getUserMedia(constraints)
     .then((stream) => {
       videoElement.srcObject = stream;
-      videoElement.play();
+      
       // Cria o objeto Camera do MediaPipe
       camera = new Camera(videoElement, {
         onFrame: async () => {
-          await faceMesh.send({image: videoElement});
+          await faceMesh.send({ image: videoElement });
         },
         width: 640,
         height: 480
       });
+      
       camera.start();
       captureBtn.disabled = false;
-      statusDiv.textContent = "Câmera ligada";
-      loadUsers(); // Carrega lista de usuários ao ligar a câmera
+      updateStatus("Câmera ativa - Posicione seu rosto");
+      
+      // Ajusta o canvas ao tamanho do vídeo
+      videoElement.onloadedmetadata = () => {
+        canvasElement.width = videoElement.videoWidth;
+        canvasElement.height = videoElement.videoHeight;
+      };
+      
+      loadUsers();
     })
     .catch((err) => {
       console.error("Erro ao acessar câmera:", err);
+      updateStatus("Erro ao acessar a câmera");
     });
 });
 
@@ -105,110 +152,224 @@ startBtn.addEventListener('click', () => {
 stopBtn.addEventListener('click', () => {
   if (camera) {
     camera.stop();
-    statusDiv.textContent = "Câmera desligada";
+    updateStatus("Câmera desativada");
+    captureBtn.disabled = true;
   }
 });
 
 // Captura o rosto para um novo usuário
 captureBtn.addEventListener('click', () => {
   const name = usernameInput.value.trim();
+  
   if (!name) {
-    alert("Por favor, digite um nome antes de capturar.");
+    showAlert("Por favor, digite um nome antes de capturar.", "warning");
     return;
   }
-  // Inicia captura se ainda não começou
+  
   if (!capturing) {
     capturing = true;
     captureCount = 0;
     embeddingsArray = [];
-    statusDiv.textContent = "Iniciando captura...";
+    updateStatus("Preparando para capturar...");
+    setTimeout(() => {
+      updateStatus("Capturando em 3...");
+      setTimeout(() => {
+        updateStatus("Capturando em 2...");
+        setTimeout(() => {
+          updateStatus("Capturando em 1...");
+          setTimeout(() => {
+            updateStatus("Capturando...");
+          }, 1000);
+        }, 1000);
+      }, 1000);
+    }, 500);
   }
 });
 
-// Função para salvar no servidor as embeddings do novo usuário
+// Salva embeddings no servidor
 function saveUserEmbeddings() {
   const name = usernameInput.value.trim();
+  updateStatus("Salvando dados...", true);
+  
   fetch('/faces', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name: name, embeddings: embeddingsArray })
+    body: JSON.stringify({ name, embeddings: embeddingsArray })
   })
-  .then(response => response.json())
+  .then(response => {
+    if (!response.ok) throw new Error('Erro no servidor');
+    return response.json();
+  })
   .then(data => {
-    statusDiv.textContent = `Usuário ${name} cadastrado.`;
+    showAlert(`Usuário ${name} cadastrado com sucesso!`, "success");
     usernameInput.value = "";
     capturing = false;
-    captureBtn.disabled = true;
-    loadUsers(); // Atualiza a lista
+    updateStatus("Captura concluída!");
+    loadUsers();
   })
   .catch(err => {
     console.error("Erro ao salvar usuário:", err);
-    statusDiv.textContent = "Erro no cadastro.";
+    showAlert("Erro ao cadastrar usuário", "danger");
+    updateStatus("Erro no cadastro");
   });
 }
 
-// Carrega lista de usuários cadastrados do servidor
+// Carrega lista de usuários
 function loadUsers() {
+  updateStatus("Carregando usuários...", true);
+  
   fetch('/faces')
-    .then(res => res.json())
+    .then(res => {
+      if (!res.ok) throw new Error('Erro ao carregar usuários');
+      return res.json();
+    })
     .then(data => {
-      facesDB = data.users;
-      userList.innerHTML = '';
-      for (const user of data.users) {
-        const li = document.createElement('li');
-        li.textContent = `${user.name} (${user.embeddings.length} amostras)`;
-        // Botão de excluir
-        const btn = document.createElement('button');
-        btn.textContent = 'Excluir';
-        btn.onclick = () => deleteUser(user.name);
-        li.appendChild(btn);
-        userList.appendChild(li);
-      }
+      facesDB = data.users || [];
+      renderUserList();
+      updateStatus("Usuários carregados");
+    })
+    .catch(err => {
+      console.error("Erro ao carregar usuários:", err);
+      updateStatus("Erro ao carregar usuários");
     });
 }
 
-// Exclui um usuário pelo nome
+// Renderiza a lista de usuários
+function renderUserList() {
+  userList.innerHTML = '';
+  
+  if (facesDB.length === 0) {
+    userList.innerHTML = `
+      <li class="list-group-item text-center text-muted">
+        Nenhum usuário cadastrado
+      </li>
+    `;
+    return;
+  }
+  
+  facesDB.forEach(user => {
+    const li = document.createElement('li');
+    li.className = 'list-group-item d-flex justify-content-between align-items-center';
+    li.innerHTML = `
+      <div>
+        <span class="fw-bold">${user.name}</span>
+        <span class="badge bg-info rounded-pill ms-2">${user.embeddings.length} amostras</span>
+      </div>
+      <button class="btn btn-sm btn-outline-danger delete-btn" data-user="${user.name}">
+        <i class="bi bi-trash"></i>
+      </button>
+    `;
+    userList.appendChild(li);
+  });
+  
+  // Adiciona event listeners aos botões de exclusão
+  document.querySelectorAll('.delete-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      deleteUserName = e.currentTarget.dataset.user;
+      userToDelete.textContent = deleteUserName;
+      deleteModal.show();
+    });
+  });
+}
+
+// Confirma exclusão de usuário
+confirmDelete.addEventListener('click', () => {
+  deleteUser(deleteUserName);
+  deleteModal.hide();
+});
+
+// Exclui um usuário
 function deleteUser(name) {
+  updateStatus(`Excluindo ${name}...`, true);
+  
   fetch('/faces', {
     method: 'DELETE',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name: name })
+    body: JSON.stringify({ name })
+  })
+  .then(response => {
+    if (!response.ok) throw new Error('Erro ao excluir usuário');
+    return response.json();
   })
   .then(() => {
-    statusDiv.textContent = `Usuário ${name} excluído.`;
+    showAlert(`Usuário ${name} excluído com sucesso`, "success");
     loadUsers();
   })
   .catch(err => {
     console.error("Erro ao excluir usuário:", err);
+    showAlert(`Erro ao excluir ${name}`, "danger");
+    updateStatus("Erro na exclusão");
   });
 }
 
-// Reconhece o rosto atual comparando com o banco de dados
+// Reconhece o rosto
 function recognizeFace(currentEmbedding) {
-  let recognizedName = null;
-  const threshold = 0.1; // Limiar de distância (ajustável)
+  if (facesDB.length === 0) {
+    updateStatus("Nenhum usuário cadastrado");
+    return;
+  }
 
-  // Compara contra cada usuário e cada embedding
+  let minDistance = Infinity;
+  let recognizedName = null;
+
   for (const user of facesDB) {
     for (const emb of user.embeddings) {
-      // Calcula distância Euclidiana
-      let sum = 0;
-      for (let i = 0; i < emb.length; i++) {
+      let distance = 0;
+      
+      // Calcula a distância euclidiana
+      for (let i = 0; i < Math.min(emb.length, currentEmbedding.length); i++) {
         const diff = emb[i] - currentEmbedding[i];
-        sum += diff * diff;
+        distance += diff * diff;
       }
-      const dist = Math.sqrt(sum);
-      if (dist < threshold) {
+      
+      distance = Math.sqrt(distance);
+      
+      if (distance < RECOGNITION_THRESHOLD && distance < minDistance) {
+        minDistance = distance;
         recognizedName = user.name;
-        break;
       }
     }
-    if (recognizedName) break;
   }
 
   if (recognizedName) {
-    statusDiv.textContent = `Rosto reconhecido: ${recognizedName}`;
+    updateStatus(`Reconhecido: ${recognizedName}`);
+    
+    // Destaca o usuário reconhecido na lista
+    const listItems = userList.querySelectorAll('.list-group-item');
+    listItems.forEach(item => {
+      if (item.textContent.includes(recognizedName)) {
+        item.classList.add('recognized');
+        setTimeout(() => item.classList.remove('recognized'), 2000);
+      }
+    });
   } else {
-    statusDiv.textContent = "Desconhecido";
+    updateStatus("Rosto não reconhecido");
   }
 }
+
+// Mostra alerta estilizado
+function showAlert(message, type) {
+  // Remove alertas existentes
+  const existingAlert = document.querySelector('.alert');
+  if (existingAlert) existingAlert.remove();
+  
+  const alert = document.createElement('div');
+  alert.className = `alert alert-${type} alert-dismissible fade show position-fixed top-0 end-0 m-3`;
+  alert.style.zIndex = '1050';
+  alert.innerHTML = `
+    ${message}
+    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+  `;
+  
+  document.body.appendChild(alert);
+  
+  // Remove automaticamente após 3 segundos
+  setTimeout(() => {
+    alert.classList.remove('show');
+    setTimeout(() => alert.remove(), 150);
+  }, 3000);
+}
+
+// Inicializa a aplicação
+updateStatus("Pronto para iniciar");
+loadUsers();
