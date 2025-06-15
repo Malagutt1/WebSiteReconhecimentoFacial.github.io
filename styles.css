@@ -5,7 +5,10 @@ body {
 
 .video-container {
   position: relative;
-  display: inline-block;
+  width: 100%;
+  max-width: 640px;
+  height: 480px;
+  margin: 0 auto;
   border-radius: 8px;
   overflow: hidden;
   box-shadow: 0 4px 6px rgba(0,0,0,0.1);
@@ -17,21 +20,39 @@ body {
   top: 0;
   left: 0;
   width: 100%;
-  height: auto;
+  height: 100%;
   border-radius: 8px;
 }
 
 #videoElement {
-  transform: scaleX(-1); /* Espelha a imagem da câmera */
+  object-fit: cover;
+  transform: scaleX(-1);
+}
+
+#outputCanvas {
+  pointer-events: none;
 }
 
 #captureIndicator {
   transition: opacity 0.3s;
   text-shadow: 0 0 10px rgba(0,0,0,0.5);
+  pointer-events: none;
+  z-index: 10;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 5rem;
+  color: white;
+  opacity: 0;
 }
 
 #status {
   min-height: 30px;
+  margin-top: 15px;
+  text-align: center;
+  font-weight: bold;
+  font-size: 1.25rem;
 }
 
 #userList .list-group-item {
@@ -58,4 +79,39 @@ body {
 .card {
   border: none;
   border-radius: 10px;
+  margin-bottom: 20px;
+  box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+}
+
+.alert-position {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  z-index: 1050;
+  min-width: 300px;
+}
+
+.card-header {
+  padding: 12px 20px;
+  background-color: #0d6efd;
+  color: white;
+  font-weight: bold;
+}
+
+.btn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.list-group-item {
+  padding: 12px 20px;
+}
+
+.badge {
+  font-size: 0.85em;
+}
+
+.spinner-border {
+  margin-right: 8px;
 }

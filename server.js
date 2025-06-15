@@ -1,9 +1,16 @@
+// Adicione isto no início do arquivo para desativar logs de cada requisição
+process.env.DEBUG = '';
+
 const express = require('express');
 const fs = require('fs');
 const path = require('path');
 const app = express();
 const DATA_FILE = path.join(__dirname, 'faceData.json');
 
+// Desativa o log padrão do Express
+app.disable('x-powered-by');
+
+// ... restante do código permanece igual ...
 app.use(express.json());
 app.use(express.static(__dirname));
 
