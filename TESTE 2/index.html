@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sistema de Reconhecimento Facial Completo</title>
+  <style>
+    body {
+      background: #111;
+      color: #fff;
+      font-family: sans-serif;
+      margin: 0;
+      padding: 20px;
+    }
+    video, canvas {
+      display: block;
+      width: 100%;
+      max-width: 640px;
+      margin: 10px auto;
+      border: 2px solid #555;
+      border-radius: 10px;
+    }
+    .controls {
+      text-align: center;
+      margin: 20px 0;
+    }
+    .controls button {
+      padding: 10px 20px;
+      font-size: 1rem;
+      margin: 5px;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+    #status {
+      text-align: center;
+      margin: 10px 0;
+      font-weight: bold;
+    }
+  </style>
+</head>
+<body>
+  <h1>Sistema de Reconhecimento Facial</h1>
+
+  <video id="video" autoplay playsinline muted></video>
+  <canvas id="canvas"></canvas>
+
+  <div class="controls">
+    <button id="toggleCam">Ligar Câmera</button>
+    <button id="btnRegister">Cadastrar</button>
+    <button id="btnClear">Limpar Banco</button>
+    <button id="btnDownload">Baixar Dados</button>
+  </div>
+
+  <div id="status">Câmera desligada</div>
+
+  <input type="text" id="nameInput" placeholder="Digite o nome" />
+
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
+
+  <script>
+    const video = document.getElementById('video');
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+    const toggleCam = document.getElementById('toggleCam');
+    const btnRegister = document.getElementById('btnRegister');
+    const btnClear = document.getElementById('btnClear');
+    const btnDownload = document.getElementById('btnDownload');
+    const statusEl = document.getElementById('status');
+    const nameInput = document.getElementById('nameInput');
+
+    let camOn = false;
+    let stream = null;
+    let lastLandmarks = null;
+    let facesDB = JSON.parse(localStorage.getItem('facesDB') || '[]');
+    const CAPTURES = 50;
+    const THRESHOLD = 0.05;
+
+    const mesh = new faceMesh.FaceMesh({
+      locateFile: f => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${f}`
+    });
+
+    mesh.setOptions({
+      maxNumFaces: 1,
+      refineLandmarks: true,
+      minDetectionConfidence: 0.5,
+      minTrackingConfidence: 0.5
+    });
+
+    mesh.onResults(results => {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      if (results.multiFaceLandmarks && results.multiFaceLandmarks.length > 0) {
+        lastLandmarks = results.multiFaceLandmarks[0];
+        window.drawingUtils.drawLandmarks(ctx, lastLandmarks, { color: 'orange', radius: 1 });
+        const desc = getDescriptor(lastLandmarks);
+        const name = recognize(desc);
+        statusEl.textContent = name ? `Reconhecido: ${name}` : 'Rosto detectado - Não cadastrado';
+      } else {
+        lastLandmarks = null;
+        statusEl.textContent = 'Nenhum rosto detectado';
+      }
+    });
+
+    function getDescriptor(landmarks) {
+      const xs = landmarks.map(p => p.x);
+      const ys = landmarks.map(p => p.y);
+      const minX = Math.min(...xs);
+      const minY = Math.min(...ys);
+      const maxX = Math.max(...xs);
+      const maxY = Math.max(...ys);
+      const w = maxX - minX;
+      const h = maxY - minY;
+      const desc = [];
+      for (const p of landmarks) {
+        desc.push((p.x - minX) / w);
+        desc.push((p.y - minY) / h);
+      }
+      return desc;
+    }
+
+    function euclid(a, b) {
+      return Math.sqrt(a.reduce((sum, v, i) => sum + (v - b[i]) ** 2, 0));
+    }
+
+    function recognize(desc) {
+      let best = { dist: Infinity, name: null };
+      for (const face of facesDB) {
+        for (const d of face.descriptors) {
+          const dist = euclid(desc, d);
+          if (dist < best.dist) best = { dist, name: face.name };
+        }
+      }
+      return best.dist < THRESHOLD ? best.name : null;
+    }
+
+    function saveDB() {
+      localStorage.setItem('facesDB', JSON.stringify(facesDB));
+    }
+
+    toggleCam.addEventListener('click', async () => {
+      if (camOn) {
+        stream.getTracks().forEach(t => t.stop());
+        camOn = false;
+        statusEl.textContent = 'Câmera desligada';
+        toggleCam.textContent = 'Ligar Câmera';
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+      } else {
+        try {
+          stream = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480 } });
+          video.srcObject = stream;
+          video.onloadedmetadata = () => {
+            video.play();
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            camOn = true;
+            toggleCam.textContent = 'Desligar Câmera';
+            statusEl.textContent = 'Procurando rosto...';
+            processFrame();
+          };
+        } catch (e) {
+          console.error(e);
+          statusEl.textContent = 'Erro ao acessar câmera';
+        }
+      }
+    });
+
+    async function processFrame() {
+      if (!camOn) return;
+      await mesh.send({ image: video });
+      requestAnimationFrame(processFrame);
+    }
+
+    btnRegister.addEventListener('click', () => {
+      const name = nameInput.value.trim();
+      if (!name) return alert('Digite um nome');
+      if (!lastLandmarks) return alert('Nenhum rosto detectado');
+
+      let captures = 0;
+      let descriptors = [];
+      statusEl.textContent = 'Capturando...';
+
+      const interval = setInterval(() => {
+        if (lastLandmarks) {
+          descriptors.push(getDescriptor(lastLandmarks));
+          captures++;
+          statusEl.textContent = `Capturando... ${captures}/${CAPTURES}`;
+        }
+        if (captures >= CAPTURES) {
+          clearInterval(interval);
+          let face = facesDB.find(f => f.name === name);
+          if (!face) {
+            face = { name, descriptors: [] };
+            facesDB.push(face);
+          }
+          face.descriptors = face.descriptors.concat(descriptors).slice(-100);
+          saveDB();
+          statusEl.textContent = 'Cadastro concluído';
+          nameInput.value = '';
+        }
+      }, 100);
+    });
+
+    btnClear.addEventListener('click', () => {
+      if (confirm('Apagar todos os rostos?')) {
+        facesDB = [];
+        saveDB();
+        statusEl.textContent = 'Banco limpo';
+      }
+    });
+
+    btnDownload.addEventListener('click', () => {
+      const a = document.createElement('a');
+      a.href = 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(facesDB, null, 2));
+      a.download = 'dados_reconhecimento_facial.json';
+      a.click();
+    });
+  </script>
+</body>
+</html>
