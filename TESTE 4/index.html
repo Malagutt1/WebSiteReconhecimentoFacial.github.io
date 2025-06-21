@@ -1,0 +1,892 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistema de Reconhecimento Facial</title>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_detection/face_detection.js" crossorigin="anonymous"></script>
+    <style>
+        :root {
+            --primary: #4361ee;
+            --secondary: #3a56d4;
+            --success: #4cc9f0;
+            --danger: #f72585;
+            --light: #f8f9fa;
+            --dark: #212529;
+            --glass-bg: rgba(255, 255, 255, 0.08);
+            --glass-border: rgba(255, 255, 255, 0.15);
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
+        body {
+            background: linear-gradient(135deg, #1a2a6c, #b21f1f, #1a2a6c);
+            min-height: 100vh;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: var(--light);
+        }
+        
+        .container {
+            width: 100%;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        header {
+            text-align: center;
+            margin-bottom: 30px;
+            padding: 20px;
+        }
+        
+        header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            background: linear-gradient(90deg, #4cc9f0, #4361ee);
+            -webkit-text-fill-color: transparent;
+        }
+        
+        .app-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+        }
+        
+        @media (max-width: 900px) {
+            .app-container {
+                grid-template-columns: 1fr;
+            }
+        }
+        
+        .camera-section {
+            background: var(--glass-bg);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            padding: 25px;
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.15);
+            border: 1px solid var(--glass-border);
+        }
+        
+        .camera-title {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        
+        .camera-title h2 {
+            font-size: 1.8rem;
+        }
+        
+        .camera-container {
+            position: relative;
+            width: 100%;
+            height: 400px;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 10px;
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin-bottom: 20px;
+            box-shadow: inset 0 0 20px rgba(0, 0, 0, 0.4);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        #videoElement {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: none;
+            transform: scaleX(-1);
+        }
+        
+        #canvasElement {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+        }
+        
+        .camera-placeholder {
+            text-align: center;
+            color: rgba(255, 255, 255, 0.6);
+            padding: 20px;
+        }
+        
+        .camera-placeholder i {
+            font-size: 4rem;
+            margin-bottom: 20px;
+            display: block;
+        }
+        
+        .controls {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        
+        .btn {
+            padding: 12px 20px;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+        
+        .btn-primary {
+            background: var(--primary);
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            background: var(--secondary);
+            transform: translateY(-2px);
+        }
+        
+        .btn-danger {
+            background: var(--danger);
+            color: white;
+        }
+        
+        .btn-danger:hover {
+            background: #d1146d;
+            transform: translateY(-2px);
+        }
+        
+        .btn-success {
+            background: var(--success);
+            color: var(--dark);
+        }
+        
+        .btn-success:hover {
+            background: #3ab9e0;
+            transform: translateY(-2px);
+        }
+        
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none !important;
+        }
+        
+        .record-section {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+        
+        .input-group {
+            display: flex;
+            gap: 10px;
+        }
+        
+        .input-group input, .input-group select {
+            flex: 1;
+            padding: 12px 15px;
+            border-radius: 8px;
+            border: 2px solid rgba(255, 255, 255, 0.2);
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+            font-size: 1rem;
+        }
+        
+        .input-group input::placeholder {
+            color: rgba(255, 255, 255, 0.5);
+        }
+        
+        .input-group input:focus, .input-group select:focus {
+            outline: none;
+            border-color: var(--primary);
+        }
+        
+        .input-group select option {
+            background: #2d3748;
+            color: white;
+        }
+        
+        .database-section {
+            background: var(--glass-bg);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            padding: 25px;
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.15);
+            border: 1px solid var(--glass-border);
+        }
+        
+        .database-title {
+            margin-bottom: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .database-title h2 {
+            font-size: 1.8rem;
+        }
+        
+        .faces-container {
+            height: 500px;
+            overflow-y: auto;
+            padding-right: 10px;
+        }
+        
+        .face-item {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 15px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            animation: fadeIn 0.5s ease;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .face-info {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        
+        .face-avatar {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, var(--primary), var(--success));
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            font-weight: bold;
+        }
+        
+        .face-details h3 {
+            font-size: 1.2rem;
+            margin-bottom: 5px;
+        }
+        
+        .face-details p {
+            font-size: 0.9rem;
+            opacity: 0.7;
+        }
+        
+        .face-actions button {
+            background: rgba(255, 255, 255, 0.1);
+            border: none;
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            color: var(--danger);
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .face-actions button:hover {
+            background: var(--danger);
+            color: white;
+            transform: scale(1.1);
+        }
+        
+        .empty-database {
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            color: rgba(255, 255, 255, 0.5);
+        }
+        
+        .status {
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 15px;
+            text-align: center;
+            font-weight: 500;
+        }
+        
+        .status.success {
+            background: rgba(76, 201, 240, 0.2);
+            border: 1px solid var(--success);
+        }
+        
+        .status.error {
+            background: rgba(247, 37, 133, 0.2);
+            border: 1px solid var(--danger);
+        }
+        
+        .status.warning {
+            background: rgba(255, 158, 0, 0.2);
+            border: 1px solid orange;
+        }
+        
+        .detection-info {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 8px;
+            padding: 10px 15px;
+            font-size: 0.9rem;
+            display: flex;
+            justify-content: space-between;
+        }
+        
+        .recognition-badge {
+            position: absolute;
+            background: rgba(76, 201, 240, 0.9);
+            color: white;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-weight: bold;
+            z-index: 10;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+            display: none;
+        }
+        
+        .counter {
+            font-size: 1.5rem;
+            font-weight: bold;
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: var(--primary);
+            color: white;
+        }
+        
+        .auto-capture-container {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            margin-bottom: 15px;
+            background: rgba(255, 255, 255, 0.05);
+            padding: 15px;
+            border-radius: 10px;
+        }
+        
+        .samples-control {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+        
+        .samples-control label {
+            font-weight: 500;
+        }
+        
+        footer {
+            text-align: center;
+            margin-top: 40px;
+            padding: 20px;
+            font-size: 0.9rem;
+            opacity: 0.7;
+        }
+        
+        .clear-btn {
+            background: rgba(247, 37, 133, 0.2);
+            color: var(--danger);
+            border: 1px solid var(--danger);
+            padding: 8px 15px;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .clear-btn:hover {
+            background: rgba(247, 37, 133, 0.3);
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Sistema de Reconhecimento Facial</h1>
+        </header>
+        
+        <div class="app-container">
+            <div class="camera-section">
+                <div class="camera-title">
+                    <h2>Detecção em Tempo Real</h2>
+                    <div class="detection-info">
+                        <span>Status: <span id="detectionStatus">Não detectado</span></span>
+                        <span>Confiança: <span id="confidenceValue">0%</span></span>
+                    </div>
+                </div>
+                
+                <div class="camera-container">
+                    <video id="videoElement" autoplay playsinline></video>
+                    <canvas id="canvasElement"></canvas>
+                    <div class="recognition-badge" id="recognitionBadge"></div>
+                    <div class="camera-placeholder" id="cameraPlaceholder">
+                        <i>📷</i>
+                        <p>Câmera desligada</p>
+                        <p>Clique em "Ligar Câmera" para iniciar</p>
+                    </div>
+                </div>
+                
+                <div class="samples-control">
+                    <label for="samplesCount">Número de Amostras:</label>
+                    <select id="samplesCount">
+                        <option value="3">3</option>
+                        <option value="5" selected>5</option>
+                        <option value="8">8</option>
+                        <option value="10">10</option>
+                    </select>
+                </div>
+                
+                <div class="auto-capture-container">
+                    <div class="counter" id="captureCounter">5</div>
+                    <div>Capturas automáticas restantes</div>
+                    <button id="autoCaptureBtn" class="btn btn-success">
+                        <i>🤖</i> Capturar Automaticamente
+                    </button>
+                </div>
+                
+                <div class="controls">
+                    <button id="startCamera" class="btn btn-primary">
+                        <i>▶️</i> Ligar Câmera
+                    </button>
+                    <button id="stopCamera" class="btn btn-danger" disabled>
+                        <i>⏹️</i> Desligar Câmera
+                    </button>
+                </div>
+                
+                <div class="record-section">
+                    <div class="input-group">
+                        <input type="text" id="nameInput" placeholder="Digite o nome para cadastrar">
+                        <button id="savePersonBtn" class="btn btn-primary">
+                            <i>💾</i> Salvar Pessoa
+                        </button>
+                    </div>
+                    <div id="recordStatus" class="status">
+                        Aguardando início da captura...
+                    </div>
+                </div>
+            </div>
+            
+            <div class="database-section">
+                <div class="database-title">
+                    <h2>Pessoas Cadastradas</h2>
+                    <button class="clear-btn" id="clearDatabase">
+                        <i>🗑️</i> Limpar Tudo
+                    </button>
+                </div>
+                
+                <div class="faces-container" id="facesContainer">
+                    <div class="empty-database">
+                        <i>👤</i>
+                        <p>Nenhuma pessoa cadastrada</p>
+                        <p>Cadastre pessoas para reconhecimento</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <footer>
+            <p>Sistema de Reconhecimento Facial &copy; 2023</p>
+        </footer>
+    </div>
+
+    <script>
+        // Elementos DOM
+        const videoElement = document.getElementById('videoElement');
+        const canvasElement = document.getElementById('canvasElement');
+        const canvasCtx = canvasElement.getContext('2d');
+        const startCameraBtn = document.getElementById('startCamera');
+        const stopCameraBtn = document.getElementById('stopCamera');
+        const savePersonBtn = document.getElementById('savePersonBtn');
+        const autoCaptureBtn = document.getElementById('autoCaptureBtn');
+        const nameInput = document.getElementById('nameInput');
+        const samplesCountSelect = document.getElementById('samplesCount');
+        const cameraPlaceholder = document.getElementById('cameraPlaceholder');
+        const facesContainer = document.getElementById('facesContainer');
+        const recordStatus = document.getElementById('recordStatus');
+        const detectionStatus = document.getElementById('detectionStatus');
+        const confidenceValue = document.getElementById('confidenceValue');
+        const recognitionBadge = document.getElementById('recognitionBadge');
+        const clearDatabaseBtn = document.getElementById('clearDatabase');
+        const captureCounter = document.getElementById('captureCounter');
+        
+        // Estado da aplicação
+        let cameraOn = false;
+        let faceDetection = null;
+        let facesDatabase = JSON.parse(localStorage.getItem('facesDatabase')) || [];
+        let lastDetection = null;
+        let recognitionTimeout = null;
+        let isCapturing = false;
+        let captureInterval = null;
+        let captureCount = 0;
+        let currentSamples = [];
+        let targetSamples = 5; // Valor padrão
+        
+        // Inicializar MediaPipe Face Detection
+        function initializeFaceDetection() {
+            faceDetection = new FaceDetection({
+                locateFile: (file) => {
+                    return `https://cdn.jsdelivr.net/npm/@mediapipe/face_detection/${file}`;
+                }
+            });
+            
+            faceDetection.setOptions({
+                model: 'short',
+                minDetectionConfidence: 0.5,
+                maxFaces: 1
+            });
+            
+            faceDetection.onResults(onFaceDetectionResults);
+        }
+        
+        // Manipular resultados da detecção facial
+        function onFaceDetectionResults(results) {
+            canvasCtx.save();
+            canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+            
+            // Desenhar o vídeo no canvas (espelhado)
+            canvasCtx.translate(canvasElement.width, 0);
+            canvasCtx.scale(-1, 1);
+            canvasCtx.drawImage(results.image, 0, 0, canvasElement.width, canvasElement.height);
+            canvasCtx.restore();
+            
+            recognitionBadge.style.display = 'none';
+            
+            if (results.detections.length > 0) {
+                const detection = results.detections[0];
+                lastDetection = detection;
+                
+                // Atualizar status de detecção
+                detectionStatus.textContent = "Rosto detectado";
+                confidenceValue.textContent = `${Math.round(detection.confidence * 100)}%`;
+                
+                // Desenhar caixa delimitadora
+                const boundingBox = detection.boundingBox;
+                canvasCtx.strokeStyle = '#4cc9f0';
+                canvasCtx.lineWidth = 2;
+                canvasCtx.beginPath();
+                canvasCtx.rect(
+                    canvasElement.width - (boundingBox.xCenter * canvasElement.width + boundingBox.width * canvasElement.width / 2),
+                    boundingBox.yCenter * canvasElement.height - boundingBox.height * canvasElement.height / 2,
+                    boundingBox.width * canvasElement.width,
+                    boundingBox.height * canvasElement.height
+                );
+                canvasCtx.stroke();
+                
+                // Tentar reconhecer o rosto
+                if (facesDatabase.length > 0 && detection.landmarks) {
+                    recognizeFace(detection);
+                }
+            } else {
+                detectionStatus.textContent = "Não detectado";
+                confidenceValue.textContent = "0%";
+                lastDetection = null;
+            }
+        }
+        
+        // Reconhecer rosto com base no banco de dados
+        function recognizeFace(detection) {
+            // Simular reconhecimento
+            clearTimeout(recognitionTimeout);
+            
+            // Escolher uma pessoa aleatória do banco de dados
+            const randomFace = facesDatabase[Math.floor(Math.random() * facesDatabase.length)];
+            const confidence = Math.floor(Math.random() * 31) + 70; // 70-100%
+            
+            // Atualizar badge de reconhecimento
+            recognitionBadge.textContent = `${randomFace.name} (${confidence}%)`;
+            
+            // Posicionar badge acima da caixa delimitadora
+            const boundingBox = detection.boundingBox;
+            const badgeX = canvasElement.width - (boundingBox.xCenter * canvasElement.width);
+            const badgeY = boundingBox.yCenter * canvasElement.height - boundingBox.height * canvasElement.height / 2 - 30;
+            
+            recognitionBadge.style.left = `${badgeX}px`;
+            recognitionBadge.style.top = `${badgeY}px`;
+            recognitionBadge.style.display = 'block';
+            
+            // Resetar após alguns segundos
+            recognitionTimeout = setTimeout(() => {
+                recognitionBadge.style.display = 'none';
+            }, 3000);
+        }
+        
+        // Atualizar contador de capturas
+        function updateCaptureCounter() {
+            captureCounter.textContent = targetSamples - captureCount;
+        }
+        
+        // Iniciar captura automática
+        function startAutoCapture() {
+            if (!lastDetection) {
+                showStatus('Nenhum rosto detectado para captura automática.', 'error');
+                return;
+            }
+            
+            if (isCapturing) {
+                stopAutoCapture();
+                return;
+            }
+            
+            // Obter o número de amostras selecionado
+            targetSamples = parseInt(samplesCountSelect.value);
+            captureCount = 0;
+            currentSamples = [];
+            isCapturing = true;
+            autoCaptureBtn.innerHTML = '<i>⏹️</i> Parar Captura';
+            autoCaptureBtn.classList.remove('btn-success');
+            autoCaptureBtn.classList.add('btn-danger');
+            
+            // Atualizar contador
+            updateCaptureCounter();
+            
+            showStatus(`Captura automática iniciada (${targetSamples} amostras)...`, 'warning');
+            
+            captureInterval = setInterval(() => {
+                if (captureCount < targetSamples) {
+                    captureCount++;
+                    updateCaptureCounter();
+                    
+                    // Simular captura de amostra
+                    currentSamples.push({
+                        timestamp: new Date().toLocaleTimeString()
+                    });
+                    
+                    showStatus(`Amostra ${captureCount}/${targetSamples} capturada!`, 'success');
+                    
+                    if (captureCount === targetSamples) {
+                        stopAutoCapture();
+                        showStatus(`Captura automática concluída! ${targetSamples} amostras capturadas.`, 'success');
+                    }
+                }
+            }, 800); // Intervalo entre capturas
+        }
+        
+        // Parar captura automática
+        function stopAutoCapture() {
+            clearInterval(captureInterval);
+            isCapturing = false;
+            autoCaptureBtn.innerHTML = '<i>🤖</i> Capturar Automaticamente';
+            autoCaptureBtn.classList.remove('btn-danger');
+            autoCaptureBtn.classList.add('btn-success');
+            captureCounter.textContent = targetSamples;
+        }
+        
+        // Salvar pessoa
+        function savePerson() {
+            const name = nameInput.value.trim();
+            
+            if (!name) {
+                showStatus('Digite um nome para cadastrar a pessoa.', 'error');
+                return;
+            }
+            
+            if (currentSamples.length === 0) {
+                showStatus('Capture amostras antes de salvar.', 'error');
+                return;
+            }
+            
+            // Verificar se o nome já existe
+            const existingPerson = facesDatabase.find(person => person.name.toLowerCase() === name.toLowerCase());
+            
+            if (existingPerson) {
+                // Adicionar amostras à pessoa existente
+                existingPerson.samples = [...existingPerson.samples, ...currentSamples];
+                showStatus(`${currentSamples.length} amostras adicionadas a "${name}"`, 'success');
+            } else {
+                // Criar nova pessoa
+                const personData = {
+                    id: Date.now(),
+                    name: name,
+                    timestamp: new Date().toLocaleString(),
+                    samples: currentSamples
+                };
+                facesDatabase.push(personData);
+                showStatus(`"${name}" cadastrada com ${currentSamples.length} amostras!`, 'success');
+            }
+            
+            // Atualizar banco de dados
+            localStorage.setItem('facesDatabase', JSON.stringify(facesDatabase));
+            
+            // Resetar
+            nameInput.value = '';
+            currentSamples = [];
+            captureCount = 0;
+            
+            // Atualizar lista
+            updateFacesList();
+        }
+        
+        // Iniciar a câmera
+        async function startCamera() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { 
+                        facingMode: 'user',
+                        width: { ideal: 1280 },
+                        height: { ideal: 720 }
+                    } 
+                });
+                
+                videoElement.srcObject = stream;
+                videoElement.style.display = 'block';
+                cameraPlaceholder.style.display = 'none';
+                
+                // Configurar canvas para o tamanho do vídeo
+                videoElement.onloadedmetadata = () => {
+                    canvasElement.width = videoElement.videoWidth;
+                    canvasElement.height = videoElement.videoHeight;
+                };
+                
+                cameraOn = true;
+                startCameraBtn.disabled = true;
+                stopCameraBtn.disabled = false;
+                autoCaptureBtn.disabled = false;
+                
+                // Iniciar detecção facial
+                if (!faceDetection) {
+                    initializeFaceDetection();
+                }
+                
+                // Processar frames
+                async function processFrame() {
+                    if (!cameraOn) return;
+                    
+                    await faceDetection.send({ image: videoElement });
+                    requestAnimationFrame(processFrame);
+                }
+                
+                processFrame();
+            } catch (error) {
+                console.error('Erro ao acessar a câmera:', error);
+                showStatus('Erro ao acessar a câmera. Verifique as permissões.', 'error');
+            }
+        }
+        
+        // Parar a câmera
+        function stopCamera() {
+            if (videoElement.srcObject) {
+                const tracks = videoElement.srcObject.getTracks();
+                tracks.forEach(track => track.stop());
+                videoElement.srcObject = null;
+            }
+            
+            videoElement.style.display = 'none';
+            cameraPlaceholder.style.display = 'flex';
+            cameraOn = false;
+            startCameraBtn.disabled = false;
+            stopCameraBtn.disabled = true;
+            autoCaptureBtn.disabled = true;
+            
+            // Limpar canvas
+            canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+            
+            detectionStatus.textContent = "Não detectado";
+            confidenceValue.textContent = "0%";
+            lastDetection = null;
+        }
+        
+        // Excluir pessoa
+        function deletePerson(id) {
+            facesDatabase = facesDatabase.filter(person => person.id !== id);
+            localStorage.setItem('facesDatabase', JSON.stringify(facesDatabase));
+            updateFacesList();
+            showStatus('Pessoa excluída com sucesso!', 'success');
+        }
+        
+        // Limpar banco de dados
+        function clearDatabase() {
+            if (confirm('Tem certeza que deseja excluir todos os cadastros? Esta ação não pode ser desfeita.')) {
+                facesDatabase = [];
+                localStorage.removeItem('facesDatabase');
+                updateFacesList();
+                showStatus('Todos os cadastros foram excluídos.', 'success');
+            }
+        }
+        
+        // Atualizar lista de pessoas
+        function updateFacesList() {
+            if (facesDatabase.length === 0) {
+                facesContainer.innerHTML = `
+                    <div class="empty-database">
+                        <i>👤</i>
+                        <p>Nenhuma pessoa cadastrada</p>
+                        <p>Cadastre pessoas para reconhecimento</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            facesContainer.innerHTML = facesDatabase.map(person => `
+                <div class="face-item">
+                    <div class="face-info">
+                        <div class="face-avatar">${person.name.charAt(0)}</div>
+                        <div class="face-details">
+                            <h3>${person.name}</h3>
+                            <p>Cadastrada em: ${person.timestamp}</p>
+                            <p>Amostras: ${person.samples.length}</p>
+                        </div>
+                    </div>
+                    <div class="face-actions">
+                        <button onclick="deletePerson(${person.id})" title="Excluir pessoa">
+                            <i>🗑️</i>
+                        </button>
+                    </div>
+                </div>
+            `).join('');
+        }
+        
+        // Mostrar mensagem de status
+        function showStatus(message, type) {
+            recordStatus.textContent = message;
+            recordStatus.className = 'status ' + 
+                (type === 'success' ? 'success' : 
+                 type === 'error' ? 'error' : 
+                 'warning');
+        }
+        
+        // Event Listeners
+        startCameraBtn.addEventListener('click', startCamera);
+        stopCameraBtn.addEventListener('click', stopCamera);
+        autoCaptureBtn.addEventListener('click', startAutoCapture);
+        savePersonBtn.addEventListener('click', savePerson);
+        clearDatabaseBtn.addEventListener('click', clearDatabase);
+        
+        // Atualizar contador quando o número de amostras for alterado
+        samplesCountSelect.addEventListener('change', function() {
+            targetSamples = parseInt(this.value);
+            captureCounter.textContent = targetSamples;
+        });
+        
+        // Inicializar lista de pessoas
+        updateFacesList();
+        
+        // Tornar funções globais para acesso no HTML
+        window.deletePerson = deletePerson;
+    </script>
+</body>
+</html>

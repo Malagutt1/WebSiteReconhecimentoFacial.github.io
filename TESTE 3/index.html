@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sistema de Reconhecimento Facial</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>Sistema de Reconhecimento Facial</h1>
+      <p class="subtitle">Identificação de rostos com IA diretamente no seu navegador</p>
+    </header>
+    
+    <div class="loading" id="loading">
+      <div class="spinner"></div>
+      <div id="modelStatus">Carregando sistema de reconhecimento facial...</div>
+    </div>
+    
+    <div class="main-content">
+      <div class="camera-section">
+        <div class="camera-container">
+          <video id="video" autoplay muted></video>
+          <canvas id="overlay"></canvas>
+          <div id="recognitionBadge"></div>
+        </div>
+        
+        <div class="status-panel">
+          <div id="modelStatus"></div>
+          <div id="errorDisplay"></div>
+        </div>
+      </div>
+      
+      <div class="controls-section">
+        <div class="panel">
+          <h2>Controles da Câmera</h2>
+          <div class="controls">
+            <div class="buttons">
+              <button id="startBtn" disabled>
+                <span>📷</span> Ligar Câmera
+              </button>
+              <button id="stopBtn" disabled>
+                <span>⏹️</span> Desligar Câmera
+              </button>
+            </div>
+          </div>
+        </div>
+        
+        <div class="panel">
+          <h2>Cadastro de Rostos</h2>
+          <div class="controls">
+            <div class="control-group">
+              <label for="nameInput">Nome para cadastrar:</label>
+              <input type="text" id="nameInput" placeholder="Digite o nome" disabled>
+            </div>
+            <div class="buttons">
+              <button id="saveBtn" disabled>
+                <span>💾</span> Salvar Rosto
+              </button>
+              <button id="clearBtn" disabled>
+                <span>🗑️</span> Limpar Banco
+              </button>
+            </div>
+          </div>
+        </div>
+        
+        <div class="panel" id="facesPanel">
+          <h2>Rostos Cadastrados</h2>
+          <div id="facesList" class="faces-list"></div>
+        </div>
+      </div>
+    </div>
+    
+    <div class="instructions">
+      <h3>Instruções de Uso:</h3>
+      <ol>
+        <li>Aguarde o carregamento completo do sistema</li>
+        <li>Clique em "Ligar Câmera" e permita o acesso ao dispositivo</li>
+        <li>Para cadastrar: Digite seu nome e clique em "Salvar Rosto"</li>
+        <li>Para reconhecer: Olhe para a câmera e seu nome aparecerá</li>
+        <li>Para remover: Clique no ícone de lixeira ao lado do nome</li>
+        <li>Os dados ficam armazenados apenas no seu navegador</li>
+      </ol>
+      <p><strong>Dica:</strong> Certifique-se de estar em um ambiente bem iluminado para melhores resultados</p>
+    </div>
+    
+    <footer>
+      <p>Sistema de Reconhecimento Facial &copy; 2023 | Tecnologia baseada em IA com armazenamento local</p>
+    </footer>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>
