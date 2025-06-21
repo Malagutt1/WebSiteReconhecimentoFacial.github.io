@@ -1,4 +1,3 @@
-// Elementos DOM
 const video = document.getElementById('video');
 const overlay = document.getElementById('overlay');
 const context = overlay.getContext('2d');
@@ -11,32 +10,67 @@ const nameInput = document.getElementById('nameInput');
 const modelStatus = document.getElementById('modelStatus');
 const errorDisplay = document.getElementById('errorDisplay');
 const loading = document.getElementById('loading');
+const facesList = document.getElementById('facesList');
 
-// Variáveis globais
 let facesDatabase = JSON.parse(localStorage.getItem('facesDB')) || [];
 let stream = null;
 let isRunning = false;
 let modelsLoaded = false;
 let faceapi = null;
 
-// Configurar dimensões do canvas e vídeo
 function setupMediaElements() {
   const container = document.querySelector('.camera-container');
-  const containerWidth = container.clientWidth - 30; // 15px de padding em cada lado
-  const aspectRatio = 9 / 16; // Proporção 16:9, mas invertida para altura/largura
+  const containerWidth = container.clientWidth - 30;
+  const aspectRatio = 9 / 16;
   
-  // Definir dimensões do vídeo e canvas
   video.width = containerWidth;
   video.height = containerWidth * aspectRatio;
   
   overlay.width = containerWidth;
   overlay.height = containerWidth * aspectRatio;
   
-  // Garantir que o vídeo seja exibido
   video.style.display = 'block';
 }
 
-// Carregar a biblioteca face-api.js
+function renderFacesList() {
+  facesList.innerHTML = '';
+  
+  if (facesDatabase.length === 0) {
+    facesList.innerHTML = '<p class="no-faces">Nenhum rosto cadastrado</p>';
+    return;
+  }
+  
+  facesDatabase.forEach((face, index) => {
+    const faceItem = document.createElement('div');
+    faceItem.className = 'face-item';
+    
+    const nameSpan = document.createElement('span');
+    nameSpan.className = 'face-name';
+    nameSpan.textContent = face.name;
+    
+    const deleteBtn = document.createElement('button');
+    deleteBtn.className = 'delete-face';
+    deleteBtn.innerHTML = '✕';
+    deleteBtn.onclick = () => deleteFace(index);
+    
+    faceItem.appendChild(nameSpan);
+    faceItem.appendChild(deleteBtn);
+    facesList.appendChild(faceItem);
+  });
+}
+
+function deleteFace(index) {
+  if (index >= 0 && index < facesDatabase.length) {
+    const faceName = facesDatabase[index].name;
+    if (confirm(`Tem certeza que deseja excluir "${faceName}"?`)) {
+      facesDatabase.splice(index, 1);
+      localStorage.setItem('facesDB', JSON.stringify(facesDatabase));
+      renderFacesList();
+      modelStatus.textContent = `"${faceName}" foi removido!`;
+    }
+  }
+}
+
 function loadFaceAPI() {
   return new Promise((resolve, reject) => {
     const cdnUrls = [
@@ -48,7 +82,7 @@ function loadFaceAPI() {
     
     function tryLoad() {
       if (currentTry >= cdnUrls.length) {
-        reject(new Error('Não foi possível carregar a biblioteca de reconhecimento facial'));
+        reject(new Error('Não foi possível carregar a biblioteca'));
         return;
       }
       
@@ -74,10 +108,9 @@ function loadFaceAPI() {
   });
 }
 
-// Carregar modelos
 async function loadModels() {
   if (!faceapi) {
-    throw new Error('Biblioteca face-api.js não disponível');
+    throw new Error('Biblioteca não disponível');
   }
   
   try {
@@ -94,30 +127,23 @@ async function loadModels() {
     clearBtn.disabled = false;
     nameInput.disabled = false;
     startBtn.disabled = false;
-    modelStatus.textContent = "Modelos carregados com sucesso!";
+    modelStatus.textContent = "Modelos carregados!";
+    
+    renderFacesList();
     
     setTimeout(() => {
       loading.style.opacity = '0';
       setTimeout(() => {
         loading.style.display = 'none';
       }, 500);
-      modelStatus.textContent = "Sistema pronto! Clique em 'Ligar Câmera' para começar";
+      modelStatus.textContent = "Sistema pronto! Clique em 'Ligar Câmera'";
     }, 1000);
     
   } catch (error) {
-    console.error("Erro ao carregar modelos:", error);
-    showError(`
-      Erro ao carregar modelos de IA:<br>
-      ${error.message}<br><br>
-      Possíveis soluções:<br>
-      1. Recarregue a página (Ctrl + F5)<br>
-      2. Verifique sua conexão com a internet<br>
-      3. Tente mais tarde
-    `);
+    showError(`Erro ao carregar modelos de IA: ${error.message}`);
   }
 }
 
-// Função para mostrar erros
 function showError(message) {
   errorDisplay.innerHTML = message;
   loading.style.opacity = '0';
@@ -126,17 +152,15 @@ function showError(message) {
   }, 500);
 }
 
-// Iniciar câmera
 async function startCamera() {
   if (!modelsLoaded) {
-    showError("Por favor, aguarde o carregamento completo dos modelos!");
+    showError("Aguarde o carregamento dos modelos!");
     return;
   }
   
   try {
     modelStatus.textContent = "Iniciando câmera...";
     
-    // Configurar elementos de mídia antes de acessar a câmera
     setupMediaElements();
     
     stream = await navigator.mediaDevices.getUserMedia({ 
@@ -153,23 +177,13 @@ async function startCamera() {
     isRunning = true;
     modelStatus.textContent = "Câmera ativa - Detectando rostos...";
     
-    // Adicionar evento para processamento de vídeo
     video.addEventListener('play', onPlay);
     
   } catch (err) {
-    console.error("Erro na câmera:", err);
-    showError(`
-      Não foi possível acessar a câmera:<br>
-      ${err.name}: ${err.message}<br><br>
-      Certifique-se de:<br>
-      1. Permitir acesso à câmera<br>
-      2. Conectar uma câmera funcional<br>
-      3. Recarregar a página e tentar novamente
-    `);
+    showError(`Não foi possível acessar a câmera: ${err.message}`);
   }
 }
 
-// Parar câmera
 function stopCamera() {
   if (stream) {
     stream.getTracks().forEach(track => track.stop());
@@ -183,7 +197,6 @@ function stopCamera() {
   modelStatus.textContent = "Câmera desativada";
 }
 
-// Loop de detecção
 async function onPlay() {
   if (!isRunning || video.paused || video.readyState < 2) return;
   
@@ -228,7 +241,6 @@ async function onPlay() {
   requestAnimationFrame(onPlay);
 }
 
-// Encontrar melhor correspondência
 function findBestMatch(descriptor) {
   if(facesDatabase.length === 0) return null;
   
@@ -244,7 +256,6 @@ function findBestMatch(descriptor) {
   return best;
 }
 
-// Salvar rosto
 saveBtn.addEventListener('click', async () => {
   if (!modelsLoaded) {
     showError("Modelos ainda não carregados!");
@@ -289,13 +300,13 @@ saveBtn.addEventListener('click', async () => {
     nameInput.value = '';
     errorDisplay.textContent = "";
     
+    renderFacesList();
+    
   } catch (error) {
-    console.error("Erro ao salvar rosto:", error);
     showError(`Erro ao processar rosto: ${error.message}`);
   }
 });
 
-// Limpar banco de dados
 clearBtn.addEventListener('click', () => {
   if (facesDatabase.length === 0) {
     showError("O banco de dados já está vazio!");
@@ -307,45 +318,38 @@ clearBtn.addEventListener('click', () => {
     localStorage.removeItem('facesDB');
     modelStatus.textContent = "Banco de dados limpo!";
     showError("Todos os rostos foram removidos!");
+    renderFacesList();
   }
 });
 
-// Event listeners
 startBtn.addEventListener('click', startCamera);
 stopBtn.addEventListener('click', stopCamera);
 
-// Inicialização do sistema
 (async function init() {
   try {
-    // Configurar elementos de mídia
     setupMediaElements();
     
-    // Carregar biblioteca
-    modelStatus.textContent = "Carregando biblioteca de reconhecimento...";
+    modelStatus.textContent = "Carregando biblioteca...";
     await loadFaceAPI();
     
-    // Carregar modelos
     await loadModels();
     
-    modelStatus.textContent = "Sistema pronto! Clique em 'Ligar Câmera' para começar";
+    modelStatus.textContent = "Sistema pronto! Clique em 'Ligar Câmera'";
     
   } catch (error) {
-    console.error("Erro na inicialização:", error);
     showError(`
       <strong>Erro crítico:</strong> Não foi possível carregar o sistema<br><br>
       ${error.message}<br><br>
-      Por favor:<br>
-      1. Verifique sua conexão com a internet<br>
-      2. Recarregue a página (Ctrl + F5)<br>
-      3. Tente usar outro navegador (Chrome, Firefox)<br>
-      4. Se o problema persistir, tente mais tarde
+      Por favor recarregue a página ou tente mais tarde
     `);
   }
 })();
 
-// Redimensionar ao mudar o tamanho da janela
 window.addEventListener('resize', () => {
   if (!isRunning) {
     setupMediaElements();
   }
 });
+
+// Renderiza a lista de rostos ao iniciar
+renderFacesList();
