@@ -3,90 +3,134 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Sistema de Reconhecimento Facial</title>
+  <title>Reconhecimento Facial Inteligente</title>
   <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
 <body>
   <div class="container">
     <header>
-      <h1>Sistema de Reconhecimento Facial</h1>
-      <p class="subtitle">Identificação de rostos com IA diretamente no seu navegador</p>
+      <h1><i class="fas fa-face-recognition"></i> Reconhecimento Facial Inteligente</h1>
+      <p class="subtitle">Sistema avançado de identificação facial baseado em IA</p>
     </header>
     
     <div class="loading" id="loading">
       <div class="spinner"></div>
-      <div id="modelStatus">Carregando sistema de reconhecimento facial...</div>
+      <div id="modelStatus">Inicializando sistema de reconhecimento...</div>
     </div>
     
     <div class="main-content">
       <div class="camera-section">
         <div class="camera-container">
+          <div class="camera-header">
+            <i class="fas fa-video"></i>
+            <h2>Visualização da Câmera</h2>
+            <div class="camera-indicator">
+              <span class="indicator-dot"></span>
+              <span id="cameraStatusText">Desligada</span>
+            </div>
+          </div>
           <video id="video" autoplay muted></video>
           <canvas id="overlay"></canvas>
           <div id="recognitionBadge"></div>
         </div>
         
-        <div class="status-panel">
-          <div id="modelStatus"></div>
-          <div id="errorDisplay"></div>
+        <div class="info-panel">
+          <div class="panel-header">
+            <i class="fas fa-info-circle"></i>
+            <h3>Painel de Informações</h3>
+          </div>
+          
+          <div class="info-grid">
+            <div class="info-card">
+              <div class="info-icon">
+                <i class="fas fa-user-check"></i>
+              </div>
+              <div class="info-content">
+                <h4>Status de Reconhecimento</h4>
+                <p id="recognitionStatus">Nenhum rosto detectado</p>
+              </div>
+            </div>
+            
+            <div class="info-card">
+              <div class="info-icon">
+                <i class="fas fa-database"></i>
+              </div>
+              <div class="info-content">
+                <h4>Banco de Dados</h4>
+                <p id="databaseStatus">0 rostos cadastrados</p>
+              </div>
+            </div>
+            
+            <div class="info-card">
+              <div class="info-icon">
+                <i class="fas fa-lightbulb"></i>
+              </div>
+              <div class="info-content">
+                <h4>Dicas para Melhor Resultado</h4>
+                <p>Posicione-se bem iluminado e olhe diretamente para a câmera</p>
+              </div>
+            </div>
+            
+            <div class="info-card">
+              <div class="info-icon">
+                <i class="fas fa-history"></i>
+              </div>
+              <div class="info-content">
+                <h4>Última Atividade</h4>
+                <p id="lastActivity">Nenhuma atividade recente</p>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
       
       <div class="controls-section">
         <div class="panel">
-          <h2>Controles da Câmera</h2>
+          <div class="panel-header">
+            <i class="fas fa-sliders-h"></i>
+            <h3>Controles do Sistema</h3>
+          </div>
           <div class="controls">
+            <div class="control-group">
+              <label for="nameInput"><i class="fas fa-signature"></i> Nome para cadastrar</label>
+              <input type="text" id="nameInput" placeholder="Digite seu nome" disabled>
+            </div>
             <div class="buttons">
               <button id="startBtn" disabled>
-                <span>📷</span> Ligar Câmera
+                <i class="fas fa-power-off"></i> Ligar Câmera
               </button>
               <button id="stopBtn" disabled>
-                <span>⏹️</span> Desligar Câmera
+                <i class="fas fa-stop"></i> Desligar Câmera
+              </button>
+              <button id="saveBtn" disabled>
+                <i class="fas fa-save"></i> Salvar Rosto
+              </button>
+              <button id="clearBtn" disabled>
+                <i class="fas fa-trash"></i> Limpar Banco
               </button>
             </div>
           </div>
         </div>
         
         <div class="panel">
-          <h2>Cadastro de Rostos</h2>
-          <div class="controls">
-            <div class="control-group">
-              <label for="nameInput">Nome para cadastrar:</label>
-              <input type="text" id="nameInput" placeholder="Digite o nome" disabled>
-            </div>
-            <div class="buttons">
-              <button id="saveBtn" disabled>
-                <span>💾</span> Salvar Rosto
-              </button>
-              <button id="clearBtn" disabled>
-                <span>🗑️</span> Limpar Banco
-              </button>
+          <div class="panel-header">
+            <i class="fas fa-users"></i>
+            <h3>Rostos Cadastrados</h3>
+          </div>
+          <div id="facesList" class="faces-list">
+            <div class="empty-state">
+              <i class="fas fa-user-plus"></i>
+              <p>Nenhum rosto cadastrado ainda</p>
+              <p>Adicione rostos usando o formulário ao lado</p>
             </div>
           </div>
-        </div>
-        
-        <div class="panel" id="facesPanel">
-          <h2>Rostos Cadastrados</h2>
-          <div id="facesList" class="faces-list"></div>
         </div>
       </div>
     </div>
     
-    <div class="instructions">
-      <h3>Instruções de Uso:</h3>
-      <ol>
-        <li>Aguarde o carregamento completo do sistema</li>
-        <li>Clique em "Ligar Câmera" e permita o acesso ao dispositivo</li>
-        <li>Para cadastrar: Digite seu nome e clique em "Salvar Rosto"</li>
-        <li>Para reconhecer: Olhe para a câmera e seu nome aparecerá</li>
-        <li>Para remover: Clique no ícone de lixeira ao lado do nome</li>
-        <li>Os dados ficam armazenados apenas no seu navegador</li>
-      </ol>
-      <p><strong>Dica:</strong> Certifique-se de estar em um ambiente bem iluminado para melhores resultados</p>
-    </div>
-    
     <footer>
-      <p>Sistema de Reconhecimento Facial &copy; 2023 | Tecnologia baseada em IA com armazenamento local</p>
+      <p>Sistema de Reconhecimento Facial &copy; 2023 | Desenvolvido com tecnologia de ponta</p>
     </footer>
   </div>
 

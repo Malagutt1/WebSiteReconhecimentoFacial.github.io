@@ -1,3 +1,4 @@
+// Elementos DOM
 const video = document.getElementById('video');
 const overlay = document.getElementById('overlay');
 const context = overlay.getContext('2d');
@@ -8,35 +9,72 @@ const saveBtn = document.getElementById('saveBtn');
 const clearBtn = document.getElementById('clearBtn');
 const nameInput = document.getElementById('nameInput');
 const modelStatus = document.getElementById('modelStatus');
-const errorDisplay = document.getElementById('errorDisplay');
 const loading = document.getElementById('loading');
 const facesList = document.getElementById('facesList');
+const cameraStatusText = document.getElementById('cameraStatusText');
+const recognitionStatus = document.getElementById('recognitionStatus');
+const databaseStatus = document.getElementById('databaseStatus');
+const indicatorDot = document.querySelector('.indicator-dot');
 
+// Variáveis globais
 let facesDatabase = JSON.parse(localStorage.getItem('facesDB')) || [];
 let stream = null;
 let isRunning = false;
 let modelsLoaded = false;
 let faceapi = null;
+let recognizedUser = null;
 
+// Atualizar status do sistema
+function updateSystemStatus() {
+  // Atualizar status da câmera
+  if (isRunning) {
+    cameraStatusText.textContent = "Ativa";
+    cameraStatusText.style.color = "#38b000";
+    indicatorDot.style.background = "#38b000";
+  } else {
+    cameraStatusText.textContent = "Desligada";
+    cameraStatusText.style.color = "#ff6b6b";
+    indicatorDot.style.background = "#ff6b6b";
+  }
+  
+  // Atualizar status de reconhecimento
+  recognitionStatus.textContent = recognizedUser ? 
+    `${recognizedUser.name} (${(100 - recognizedUser.distance * 100).toFixed(0)}% confiança)` : 
+    "Nenhum rosto detectado";
+  
+  recognitionStatus.style.color = recognizedUser ? "#38b000" : "#ff6b6b";
+  
+  // Atualizar status do banco de dados
+  const faceCount = facesDatabase.length;
+  databaseStatus.textContent = `${faceCount} rosto${faceCount !== 1 ? 's' : ''} cadastrado${faceCount !== 1 ? 's' : ''}`;
+}
+
+// Configurar dimensões do canvas e vídeo
 function setupMediaElements() {
   const container = document.querySelector('.camera-container');
-  const containerWidth = container.clientWidth - 30;
-  const aspectRatio = 9 / 16;
+  const containerWidth = container.clientWidth;
   
   video.width = containerWidth;
-  video.height = containerWidth * aspectRatio;
+  video.height = 400;
   
   overlay.width = containerWidth;
-  overlay.height = containerWidth * aspectRatio;
+  overlay.height = 400;
   
   video.style.display = 'block';
 }
 
+// Renderizar lista de rostos
 function renderFacesList() {
   facesList.innerHTML = '';
   
   if (facesDatabase.length === 0) {
-    facesList.innerHTML = '<p class="no-faces">Nenhum rosto cadastrado</p>';
+    facesList.innerHTML = `
+      <div class="empty-state">
+        <i class="fas fa-user-plus"></i>
+        <p>Nenhum rosto cadastrado ainda</p>
+        <p>Adicione rostos usando o formulário ao lado</p>
+      </div>
+    `;
     return;
   }
   
@@ -50,15 +88,18 @@ function renderFacesList() {
     
     const deleteBtn = document.createElement('button');
     deleteBtn.className = 'delete-face';
-    deleteBtn.innerHTML = '✕';
+    deleteBtn.innerHTML = '<i class="fas fa-times"></i>';
     deleteBtn.onclick = () => deleteFace(index);
     
     faceItem.appendChild(nameSpan);
     faceItem.appendChild(deleteBtn);
     facesList.appendChild(faceItem);
   });
+  
+  updateSystemStatus();
 }
 
+// Excluir rosto individual
 function deleteFace(index) {
   if (index >= 0 && index < facesDatabase.length) {
     const faceName = facesDatabase[index].name;
@@ -66,11 +107,11 @@ function deleteFace(index) {
       facesDatabase.splice(index, 1);
       localStorage.setItem('facesDB', JSON.stringify(facesDatabase));
       renderFacesList();
-      modelStatus.textContent = `"${faceName}" foi removido!`;
     }
   }
 }
 
+// Carregar biblioteca face-api.js
 function loadFaceAPI() {
   return new Promise((resolve, reject) => {
     const cdnUrls = [
@@ -82,7 +123,7 @@ function loadFaceAPI() {
     
     function tryLoad() {
       if (currentTry >= cdnUrls.length) {
-        reject(new Error('Não foi possível carregar a biblioteca'));
+        reject(new Error('Não foi possível carregar a biblioteca de reconhecimento facial'));
         return;
       }
       
@@ -108,9 +149,10 @@ function loadFaceAPI() {
   });
 }
 
+// Carregar modelos
 async function loadModels() {
   if (!faceapi) {
-    throw new Error('Biblioteca não disponível');
+    throw new Error('Biblioteca face-api.js não disponível');
   }
   
   try {
@@ -127,34 +169,27 @@ async function loadModels() {
     clearBtn.disabled = false;
     nameInput.disabled = false;
     startBtn.disabled = false;
-    modelStatus.textContent = "Modelos carregados!";
+    modelStatus.textContent = "Modelos carregados com sucesso!";
     
     renderFacesList();
+    updateSystemStatus();
     
     setTimeout(() => {
       loading.style.opacity = '0';
       setTimeout(() => {
         loading.style.display = 'none';
       }, 500);
-      modelStatus.textContent = "Sistema pronto! Clique em 'Ligar Câmera'";
     }, 1000);
     
   } catch (error) {
-    showError(`Erro ao carregar modelos de IA: ${error.message}`);
+    modelStatus.textContent = `Erro ao carregar modelos: ${error.message}`;
   }
 }
 
-function showError(message) {
-  errorDisplay.innerHTML = message;
-  loading.style.opacity = '0';
-  setTimeout(() => {
-    loading.style.display = 'none';
-  }, 500);
-}
-
+// Iniciar câmera
 async function startCamera() {
   if (!modelsLoaded) {
-    showError("Aguarde o carregamento dos modelos!");
+    modelStatus.textContent = "Aguarde o carregamento dos modelos!";
     return;
   }
   
@@ -177,13 +212,17 @@ async function startCamera() {
     isRunning = true;
     modelStatus.textContent = "Câmera ativa - Detectando rostos...";
     
+    recognizedUser = null;
+    updateSystemStatus();
+    
     video.addEventListener('play', onPlay);
     
   } catch (err) {
-    showError(`Não foi possível acessar a câmera: ${err.message}`);
+    modelStatus.textContent = `Não foi possível acessar a câmera: ${err.message}`;
   }
 }
 
+// Parar câmera
 function stopCamera() {
   if (stream) {
     stream.getTracks().forEach(track => track.stop());
@@ -195,8 +234,12 @@ function stopCamera() {
   badge.style.display = 'none';
   context.clearRect(0, 0, overlay.width, overlay.height);
   modelStatus.textContent = "Câmera desativada";
+  
+  recognizedUser = null;
+  updateSystemStatus();
 }
 
+// Loop de detecção
 async function onPlay() {
   if (!isRunning || video.paused || video.readyState < 2) return;
   
@@ -225,14 +268,21 @@ async function onPlay() {
       if (match) {
         const box = resized[0].detection.box;
         badge.style.left = `${box.x + 15}px`;
-        badge.style.top = `${box.y - 30 + 15}px`;
+        badge.style.top = `${box.y - 30 + 60}px`;
         badge.textContent = `${match.name} (${(100 - match.distance * 100).toFixed(0)}%)`;
         badge.style.display = 'block';
+        
+        recognizedUser = match;
+        updateSystemStatus();
       } else {
         badge.style.display = 'none';
+        recognizedUser = null;
+        updateSystemStatus();
       }
     } else {
       badge.style.display = 'none';
+      recognizedUser = null;
+      updateSystemStatus();
     }
   } catch (error) {
     console.error("Erro na detecção:", error);
@@ -241,6 +291,7 @@ async function onPlay() {
   requestAnimationFrame(onPlay);
 }
 
+// Encontrar melhor correspondência
 function findBestMatch(descriptor) {
   if(facesDatabase.length === 0) return null;
   
@@ -256,20 +307,22 @@ function findBestMatch(descriptor) {
   return best;
 }
 
+// Salvar rosto
 saveBtn.addEventListener('click', async () => {
   if (!modelsLoaded) {
-    showError("Modelos ainda não carregados!");
+    modelStatus.textContent = "Modelos ainda não carregados!";
     return;
   }
   
   const name = nameInput.value.trim();
   if (!name) {
-    showError("Digite o nome antes de salvar!");
+    modelStatus.textContent = "Digite o nome antes de salvar!";
     return;
   }
   
   try {
     modelStatus.textContent = "Detectando e salvando rosto...";
+    
     const detection = await faceapi.detectSingleFace(video, 
       new faceapi.TinyFaceDetectorOptions({
         inputSize: 320,
@@ -280,7 +333,6 @@ saveBtn.addEventListener('click', async () => {
       
     if (!detection) {
       modelStatus.textContent = "Nenhum rosto detectado!";
-      showError("Posicione seu rosto na câmera e tente novamente");
       return;
     }
     
@@ -298,18 +350,18 @@ saveBtn.addEventListener('click', async () => {
     localStorage.setItem('facesDB', JSON.stringify(facesDatabase));
     modelStatus.textContent = `"${name}" salvo com sucesso!`;
     nameInput.value = '';
-    errorDisplay.textContent = "";
     
     renderFacesList();
     
   } catch (error) {
-    showError(`Erro ao processar rosto: ${error.message}`);
+    modelStatus.textContent = `Erro ao processar rosto: ${error.message}`;
   }
 });
 
+// Limpar banco de dados
 clearBtn.addEventListener('click', () => {
   if (facesDatabase.length === 0) {
-    showError("O banco de dados já está vazio!");
+    modelStatus.textContent = "O banco de dados já está vazio!";
     return;
   }
   
@@ -317,14 +369,15 @@ clearBtn.addEventListener('click', () => {
     facesDatabase = [];
     localStorage.removeItem('facesDB');
     modelStatus.textContent = "Banco de dados limpo!";
-    showError("Todos os rostos foram removidos!");
     renderFacesList();
   }
 });
 
+// Event listeners
 startBtn.addEventListener('click', startCamera);
 stopBtn.addEventListener('click', stopCamera);
 
+// Inicialização do sistema
 (async function init() {
   try {
     setupMediaElements();
@@ -337,19 +390,13 @@ stopBtn.addEventListener('click', stopCamera);
     modelStatus.textContent = "Sistema pronto! Clique em 'Ligar Câmera'";
     
   } catch (error) {
-    showError(`
-      <strong>Erro crítico:</strong> Não foi possível carregar o sistema<br><br>
-      ${error.message}<br><br>
-      Por favor recarregue a página ou tente mais tarde
-    `);
+    modelStatus.textContent = `Erro crítico: ${error.message}`;
   }
 })();
 
+// Redimensionar ao mudar o tamanho da janela
 window.addEventListener('resize', () => {
   if (!isRunning) {
     setupMediaElements();
   }
 });
-
-// Renderiza a lista de rostos ao iniciar
-renderFacesList();
