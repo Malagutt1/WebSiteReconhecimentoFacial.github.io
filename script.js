@@ -1,4 +1,3 @@
-// Elementos DOM
 const video = document.getElementById('video');
 const overlay = document.getElementById('overlay');
 const context = overlay.getContext('2d');
@@ -16,7 +15,6 @@ const recognitionStatus = document.getElementById('recognitionStatus');
 const databaseStatus = document.getElementById('databaseStatus');
 const indicatorDot = document.querySelector('.indicator-dot');
 
-// Variáveis globais
 let facesDatabase = JSON.parse(localStorage.getItem('facesDB')) || [];
 let stream = null;
 let isRunning = false;
@@ -24,9 +22,7 @@ let modelsLoaded = false;
 let faceapi = null;
 let recognizedUser = null;
 
-// Atualizar status do sistema
 function updateSystemStatus() {
-  // Atualizar status da câmera
   if (isRunning) {
     cameraStatusText.textContent = "Ativa";
     cameraStatusText.style.color = "#38b000";
@@ -37,19 +33,16 @@ function updateSystemStatus() {
     indicatorDot.style.background = "#ff6b6b";
   }
   
-  // Atualizar status de reconhecimento
   recognitionStatus.textContent = recognizedUser ? 
     `${recognizedUser.name} (${(100 - recognizedUser.distance * 100).toFixed(0)}% confiança)` : 
     "Nenhum rosto detectado";
   
   recognitionStatus.style.color = recognizedUser ? "#38b000" : "#ff6b6b";
   
-  // Atualizar status do banco de dados
   const faceCount = facesDatabase.length;
   databaseStatus.textContent = `${faceCount} rosto${faceCount !== 1 ? 's' : ''} cadastrado${faceCount !== 1 ? 's' : ''}`;
 }
 
-// Configurar dimensões do canvas e vídeo
 function setupMediaElements() {
   const container = document.querySelector('.camera-container');
   const containerWidth = container.clientWidth;
@@ -63,7 +56,6 @@ function setupMediaElements() {
   video.style.display = 'block';
 }
 
-// Renderizar lista de rostos
 function renderFacesList() {
   facesList.innerHTML = '';
   
@@ -99,7 +91,6 @@ function renderFacesList() {
   updateSystemStatus();
 }
 
-// Excluir rosto individual
 function deleteFace(index) {
   if (index >= 0 && index < facesDatabase.length) {
     const faceName = facesDatabase[index].name;
@@ -111,7 +102,6 @@ function deleteFace(index) {
   }
 }
 
-// Carregar biblioteca face-api.js
 function loadFaceAPI() {
   return new Promise((resolve, reject) => {
     const cdnUrls = [
@@ -149,7 +139,6 @@ function loadFaceAPI() {
   });
 }
 
-// Carregar modelos
 async function loadModels() {
   if (!faceapi) {
     throw new Error('Biblioteca face-api.js não disponível');
@@ -186,7 +175,6 @@ async function loadModels() {
   }
 }
 
-// Iniciar câmera
 async function startCamera() {
   if (!modelsLoaded) {
     modelStatus.textContent = "Aguarde o carregamento dos modelos!";
@@ -222,7 +210,6 @@ async function startCamera() {
   }
 }
 
-// Parar câmera
 function stopCamera() {
   if (stream) {
     stream.getTracks().forEach(track => track.stop());
@@ -239,7 +226,6 @@ function stopCamera() {
   updateSystemStatus();
 }
 
-// Loop de detecção
 async function onPlay() {
   if (!isRunning || video.paused || video.readyState < 2) return;
   
@@ -291,7 +277,6 @@ async function onPlay() {
   requestAnimationFrame(onPlay);
 }
 
-// Encontrar melhor correspondência
 function findBestMatch(descriptor) {
   if(facesDatabase.length === 0) return null;
   
@@ -307,7 +292,6 @@ function findBestMatch(descriptor) {
   return best;
 }
 
-// Salvar rosto
 saveBtn.addEventListener('click', async () => {
   if (!modelsLoaded) {
     modelStatus.textContent = "Modelos ainda não carregados!";
@@ -358,7 +342,6 @@ saveBtn.addEventListener('click', async () => {
   }
 });
 
-// Limpar banco de dados
 clearBtn.addEventListener('click', () => {
   if (facesDatabase.length === 0) {
     modelStatus.textContent = "O banco de dados já está vazio!";
@@ -373,11 +356,9 @@ clearBtn.addEventListener('click', () => {
   }
 });
 
-// Event listeners
 startBtn.addEventListener('click', startCamera);
 stopBtn.addEventListener('click', stopCamera);
 
-// Inicialização do sistema
 (async function init() {
   try {
     setupMediaElements();
@@ -394,7 +375,6 @@ stopBtn.addEventListener('click', stopCamera);
   }
 })();
 
-// Redimensionar ao mudar o tamanho da janela
 window.addEventListener('resize', () => {
   if (!isRunning) {
     setupMediaElements();
