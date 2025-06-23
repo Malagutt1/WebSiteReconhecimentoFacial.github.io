@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Reconhecimento Facial Inteligente</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1><i class="fas fa-face-recognition"></i> Reconhecimento Facial Inteligente</h1>
+      <p class="subtitle">Sistema avançado de identificação facial baseado em IA</p>
+    </header>
+    
+    <div class="loading" id="loading">
+      <div class="spinner"></div>
+      <div id="modelStatus">Inicializando sistema de reconhecimento...</div>
+    </div>
+    
+    <div class="main-content">
+      <div class="camera-section">
+        <div class="camera-container">
+          <div class="camera-header">
+            <i class="fas fa-video"></i>
+            <h2>Visualização da Câmera</h2>
+            <div class="camera-indicator">
+              <span class="indicator-dot"></span>
+              <span id="cameraStatusText">Desligada</span>
+            </div>
+          </div>
+          <video id="video" autoplay muted></video>
+          <canvas id="overlay"></canvas>
+          <div id="multiUserStatus"></div>
+        </div>
+        
+        <div class="info-panel">
+          <div class="panel-header">
+            <i class="fas fa-info-circle"></i>
+            <h3>Painel de Informações</h3>
+          </div>
+          
+          <div class="info-grid">
+            <div class="info-card">
+              <div class="info-icon">
+                <i class="fas fa-user-check"></i>
+              </div>
+              <div class="info-content">
+                <h4>Status de Reconhecimento</h4>
+                <p id="recognitionStatus">Nenhum rosto detectado</p>
+              </div>
+            </div>
+            
+            <div class="info-card">
+              <div class="info-icon">
+                <i class="fas fa-database"></i>
+              </div>
+              <div class="info-content">
+                <h4>Banco de Dados</h4>
+                <p id="databaseStatus">0 rostos cadastrados</p>
+              </div>
+            </div>
+            
+            <div class="info-card">
+              <div class="info-icon">
+                <i class="fas fa-lightbulb"></i>
+              </div>
+              <div class="info-content">
+                <h4>Dicas para Melhor Resultado</h4>
+                <p>Posicione-se bem iluminado e olhe diretamente para a câmera</p>
+              </div>
+            </div>
+            
+            <div class="info-card">
+              <div class="info-icon">
+                <i class="fas fa-history"></i>
+              </div>
+              <div class="info-content">
+                <h4>Última Atividade</h4>
+                <p id="lastActivity">Nenhuma atividade recente</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <div class="controls-section">
+        <div class="panel">
+          <div class="panel-header">
+            <i class="fas fa-sliders-h"></i>
+            <h3>Controles do Sistema</h3>
+          </div>
+          <div class="controls">
+            <div class="control-group">
+              <label for="nameInput"><i class="fas fa-signature"></i> Nome para cadastrar</label>
+              <input type="text" id="nameInput" placeholder="Digite seu nome" disabled>
+            </div>
+            <div class="buttons">
+              <button id="startBtn" disabled>
+                <i class="fas fa-power-off"></i> Ligar Câmera
+              </button>
+              <button id="stopBtn" disabled>
+                <i class="fas fa-stop"></i> Desligar Câmera
+              </button>
+              <button id="saveBtn" disabled>
+                <i class="fas fa-save"></i> Salvar Rosto
+              </button>
+              <button id="clearBtn" disabled>
+                <i class="fas fa-trash"></i> Limpar Banco
+              </button>
+            </div>
+          </div>
+        </div>
+        
+        <div class="panel">
+          <div class="panel-header">
+            <i class="fas fa-users"></i>
+            <h3>Rostos Cadastrados</h3>
+          </div>
+          <div id="facesList" class="faces-list">
+            <div class="empty-state">
+              <i class="fas fa-user-plus"></i>
+              <p>Nenhum rosto cadastrado ainda</p>
+              <p>Adicione rostos usando o formulário ao lado</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <footer>
+      <p>Sistema de Reconhecimento Facial &copy; 2025 | Projeto Desenvolvido por Lucas Mattos, Rikelme Tarone, Kauã Malagutti, Victor Bottin e Pedro Gnoato</p>
+    </footer>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>
